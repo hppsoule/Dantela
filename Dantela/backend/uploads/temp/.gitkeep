@@ -1,0 +1,2 @@
+# Ce fichier permet de garder le dossier uploads/temp dans git
+# Les fichiers temporaires seront ignorés mais le dossier restera
