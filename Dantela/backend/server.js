@@ -1,5 +1,5 @@
 /**
- * Serveur principal Dantela Depot (Express)
+ * Serveur principal Dantela Depot (Express) — compatible Vercel (CORS)
  */
 const express = require('express');
 const cors = require('cors');
@@ -24,26 +24,52 @@ const PORT = process.env.PORT || 5000;
 const HOST = process.env.HOST || '0.0.0.0';
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
-// Proxy (Render) pour X-Forwarded-Proto, IP, etc.
+// Render / proxy
 app.set('trust proxy', 1);
 
-// ——— CORS
-const allowedOrigins = [
-  process.env.FRONTEND_URL,            // ex: https://dantela.vercel.app
+// ===============================
+// CORS — Autoriser Vercel & local
+// ===============================
+/**
+ * FRONTEND_URL : ton domaine de prod Vercel (ex: https://dantela.vercel.app)
+ * EXTRA_CORS_ORIGINS : liste d’origines additionnelles séparées par des virgules (optionnel)
+ */
+const baseAllowed = [
+  process.env.FRONTEND_URL,          // ex: https://dantela.vercel.app
   'http://localhost:5173',
   'http://127.0.0.1:5173',
   'http://localhost:3000',
   'http://127.0.0.1:3000',
-].filter(Boolean);
+]
+  .concat(
+    (process.env.EXTRA_CORS_ORIGINS || '')
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean)
+  )
+  .filter(Boolean);
+
+// Autoriser toutes les previews Vercel: https://*.vercel.app
+const VERCEL_PREVIEW_REGEX = /^https?:\/\/([a-z0-9-]+\.)*vercel\.app$/i;
+
+function isAllowedOrigin(origin) {
+  if (!origin) return true; // Postman / apps natives
+  if (baseAllowed.includes(origin)) return true;
+  if (VERCEL_PREVIEW_REGEX.test(origin)) return true; // previews
+  return false;
+}
 
 const corsOptions = {
   origin(origin, cb) {
-    if (!origin) return cb(null, true); // Postman / mobile
-    if (allowedOrigins.includes(origin)) return cb(null, true);
-    if (NODE_ENV === 'development') {
-      console.log('⚠️ CORS (dev):', origin);
+    if (isAllowedOrigin(origin)) {
       return cb(null, true);
     }
+    // En dev, on log et on autorise pour aider au debug
+    if (NODE_ENV === 'development') {
+      console.log('⚠️ CORS (dev, autorisé malgré tout):', origin);
+      return cb(null, true);
+    }
+    console.log('⛔ CORS refusé pour:', origin);
     return cb(new Error(`Not allowed by CORS: ${origin}`));
   },
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -53,6 +79,7 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
+// Répondre aux préflights pour toutes les routes
 app.options('*', cors(corsOptions));
 
 // ——— Middlewares
@@ -61,7 +88,9 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 if (NODE_ENV !== 'test') {
   app.use((req, _res, next) => {
-    console.log(`📝 ${new Date().toISOString()} - ${req.method} ${req.originalUrl}`);
+    console.log(
+      `📝 ${new Date().toISOString()} - ${req.method} ${req.originalUrl} | Origin=${req.headers.origin || 'n/a'}`
+    );
     next();
   });
 }
@@ -70,7 +99,7 @@ if (NODE_ENV !== 'test') {
 app.get('/api/health', (_req, res) => {
   res.json({
     success: true,
-    message: "API Dantela Depot OK",
+    message: 'API Dantela Depot OK',
     timestamp: new Date().toISOString(),
     version: '1.0.0',
     env: NODE_ENV,
