@@ -43,6 +43,10 @@ import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import Layout from '../components/Layout';
 
+// En dev (Vite) -> /api via proxy
+// En prod (Vercel) -> VITE_API_BASE_URL = https://dantela.onrender.com/api
+const API = (import.meta.env.VITE_API_BASE_URL ?? '/api').replace(/\/$/, '');
+
 interface Settings {
   company: {
     name: string;
@@ -108,12 +112,20 @@ const SettingsPage: React.FC = () => {
   const [showSystemInfoModal, setShowSystemInfoModal] = useState(false);
   const [systemInfo, setSystemInfo] = useState<any>(null);
 
+  // Headers avec token
+  const authHeaders = () => {
+    const token = localStorage.getItem('token');
+    return {
+      Authorization: token ? `Bearer ${token}` : '',
+      'Content-Type': 'application/json',
+    };
+  };
+
   // Écouter les changements de langue
   useEffect(() => {
     const handleLanguageChange = () => {
       forceUpdate({});
     };
-    
     window.addEventListener('languageChanged', handleLanguageChange);
     return () => window.removeEventListener('languageChanged', handleLanguageChange);
   }, []);
@@ -124,14 +136,7 @@ const SettingsPage: React.FC = () => {
 
   const fetchSettings = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/settings', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
+      const response = await fetch(`${API}/settings`, { headers: authHeaders() });
       if (response.ok) {
         const data = await response.json();
         setSettings(data.settings);
@@ -152,14 +157,9 @@ const SettingsPage: React.FC = () => {
     try {
       setSaving(true);
       setError('');
-      
-      const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/settings', {
+      const response = await fetch(`${API}/settings`, {
         method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
+        headers: authHeaders(),
         body: JSON.stringify({ settings }),
       });
 
@@ -167,7 +167,7 @@ const SettingsPage: React.FC = () => {
         setSuccessMessage('Paramètres sauvegardés avec succès !');
         setTimeout(() => setSuccessMessage(''), 3000);
       } else {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({}));
         setError(errorData.message || 'Erreur lors de la sauvegarde');
       }
     } catch (error) {
@@ -180,13 +180,9 @@ const SettingsPage: React.FC = () => {
 
   const handleBackup = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/settings/backup', {
+      const response = await fetch(`${API}/settings/backup`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
+        headers: authHeaders(),
       });
 
       if (response.ok) {
@@ -194,8 +190,8 @@ const SettingsPage: React.FC = () => {
         alert(`Sauvegarde créée : ${data.backup.filename} (${data.backup.size})`);
         setShowBackupModal(false);
       } else {
-        const errorData = await response.json();
-        alert(errorData.message);
+        const errorData = await response.json().catch(() => ({}));
+        alert(errorData.message || 'Erreur lors de la sauvegarde');
       }
     } catch (error) {
       console.error('Erreur:', error);
@@ -205,13 +201,9 @@ const SettingsPage: React.FC = () => {
 
   const handleImport = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/settings/import', {
+      const response = await fetch(`${API}/settings/import`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
+        headers: authHeaders(),
       });
 
       if (response.ok) {
@@ -220,24 +212,20 @@ const SettingsPage: React.FC = () => {
         setShowImportModal(false);
         fetchSettings(); // Recharger
       } else {
-        const errorData = await response.json();
-        alert(errorData.message);
+        const errorData = await response.json().catch(() => ({}));
+        alert(errorData.message || 'Erreur lors de l’import');
       }
     } catch (error) {
       console.error('Erreur:', error);
-      alert('Erreur lors de l\'import');
+      alert('Erreur lors de l’import');
     }
   };
 
   const handleReset = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/settings/reset', {
+      const response = await fetch(`${API}/settings/reset`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
+        headers: authHeaders(),
       });
 
       if (response.ok) {
@@ -245,8 +233,8 @@ const SettingsPage: React.FC = () => {
         setShowResetModal(false);
         fetchSettings(); // Recharger
       } else {
-        const errorData = await response.json();
-        alert(errorData.message);
+        const errorData = await response.json().catch(() => ({}));
+        alert(errorData.message || 'Erreur lors du reset');
       }
     } catch (error) {
       console.error('Erreur:', error);
@@ -256,12 +244,8 @@ const SettingsPage: React.FC = () => {
 
   const fetchSystemInfo = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/settings/system-info', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
+      const response = await fetch(`${API}/settings/system-info`, {
+        headers: authHeaders(),
       });
 
       if (response.ok) {
@@ -276,7 +260,6 @@ const SettingsPage: React.FC = () => {
 
   const updateSettings = (section: keyof Settings, field: string, value: any) => {
     if (!settings) return;
-    
     setSettings({
       ...settings,
       [section]: {
@@ -340,7 +323,6 @@ const SettingsPage: React.FC = () => {
       </Layout>
     );
   }
-
   return (
     <Layout>
       <div className="space-y-6">

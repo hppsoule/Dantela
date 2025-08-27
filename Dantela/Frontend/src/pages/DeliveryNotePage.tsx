@@ -70,7 +70,9 @@ const DeliveryNotePage: React.FC = () => {
  const fetchBonFromAPI = async (bonId: string) => {
    try {
      const token = localStorage.getItem('token');
-     const response = await fetch(`http://localhost:5000/api/bons-livraison/${bonId}`, {
+     //const response = await fetch(`http://localhost:5000/api/bons-livraison/${bonId}`, {
+     const response = await fetch(`/api/bons-livraison/${bonId}`, {
+
        headers: {
          'Authorization': `Bearer ${token}`,
          'Content-Type': 'application/json',
@@ -160,56 +162,69 @@ const DeliveryNotePage: React.FC = () => {
    }
  };
     
-  const fetchBonLivraison = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/demandes/${id}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
+ const fetchBonLivraison = async () => {
+  try {
+    const token = localStorage.getItem('token');
 
-      if (response.ok) {
-        const data = await response.json();
-        const demande = data.demande;
-        
-        // Transformer les données pour le bon de livraison
-        const bon: BonLivraison = {
-          id: demande.id,
-          numero_bon: `BL-2025-0573`,
-          date_preparation: new Date().toISOString(),
-          demandeur_nom: destinataireNom,
-          demandeur_email: destinataireEmail,
-          demandeur_telephone: destinataireTelephone,
-          demandeur_adresse: destinataireAdresse,
-          nom_chantier: demande.nom_chantier || 'Non spécifié',
-          magazinier_nom: `${user?.prenom || ''} ${user?.nom || ''}`.trim() || 'Non spécifié',
-          depot_nom: demande.depot_nom || 'Dépôt Principal',
-          items: demande.items || []
-        };
-        
-         console.log('📋 Bon transformé pour affichage:', {
-           numero_bon: bon.numero_bon,
-           destinataire: {
-             nom: bon.demandeur_nom,
-             telephone: bon.demandeur_telephone,
-             adresse: bon.demandeur_adresse
-           },
-           items_count: bon.items.length
-         });
-         
-        setBonLivraison(bon);
-      } else {
-        setError('Erreur lors du chargement du bon de livraison');
-      }
-    } catch (error) {
-      console.error('Erreur:', error);
-      setError('Erreur de connexion');
-    } finally {
-      setLoading(false);
+    // ✅ URL relative (fonctionne en dev via Vite proxy et en prod via vercel.json)
+    const response = await fetch(`/api/demandes/${id}`, {
+      headers: {
+        'Authorization': token ? `Bearer ${token}` : '',
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      setError(`Erreur HTTP: ${response.status}`);
+      return;
     }
-  };
+
+    const data = await response.json();
+    const demande = data.demande || {};
+
+    // ✅ Sécurise les champs destinataire
+    const destinataireNom =
+      demande.demandeur_nom || demande.destinataire_nom || 'Non spécifié';
+    const destinataireEmail =
+      demande.demandeur_email || demande.destinataire_email || 'non.specifie@exemple.com';
+    const destinataireTelephone =
+      demande.demandeur_telephone || demande.destinataire_telephone || '—';
+    const destinataireAdresse =
+      demande.demandeur_adresse || demande.destinataire_adresse || '—';
+
+    // ✅ Construction des données du bon
+    const bon: BonLivraison = {
+      id: demande.id,
+      numero_bon: `BL-${new Date().getFullYear()}-0573`,
+      date_preparation: new Date().toISOString(),
+      demandeur_nom: destinataireNom,
+      demandeur_email: destinataireEmail,
+      demandeur_telephone: destinataireTelephone,
+      demandeur_adresse: destinataireAdresse,
+      nom_chantier: demande.nom_chantier || 'Non spécifié',
+      magazinier_nom: `${user?.prenom || ''} ${user?.nom || ''}`.trim() || 'Non spécifié',
+      depot_nom: demande.depot_nom || 'Dépôt Principal',
+      items: demande.items || [],
+    };
+
+    console.log('📋 Bon transformé pour affichage:', {
+      numero_bon: bon.numero_bon,
+      destinataire: {
+        nom: bon.demandeur_nom,
+        telephone: bon.demandeur_telephone,
+        adresse: bon.demandeur_adresse,
+      },
+      items_count: bon.items.length,
+    });
+
+    setBonLivraison(bon);
+  } catch (error) {
+    console.error('Erreur:', error);
+    setError('Erreur de connexion');
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handlePrint = () => {
     window.print();

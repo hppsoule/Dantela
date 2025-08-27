@@ -32,6 +32,9 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 
+// 👇 Base d'URL unique
+const API_BASE = import.meta.env.VITE_API_URL ?? '/api';
+
 interface Materiau {
   id: string;
   code_produit: string;
@@ -150,9 +153,9 @@ const DirectDistributionPage: React.FC = () => {
 
       // Récupérer les données en parallèle
       const [materiauxRes, chefsRes, mouvementsRes] = await Promise.all([
-        fetch('http://localhost:5000/api/materiaux', { headers }),
-        fetch('http://localhost:5000/api/admin/chefs-chantier', { headers }),
-        fetch('http://localhost:5000/api/stock/movements?limit=20', { headers })
+        fetch(`${API_BASE}/materiaux`, { headers }),
+        fetch(`${API_BASE}/admin/chefs-chantier`, { headers }),
+        fetch(`${API_BASE}/stock/movements?limit=20`, { headers })
       ]);
 
       if (materiauxRes.ok) {
@@ -263,6 +266,15 @@ const DirectDistributionPage: React.FC = () => {
       setSubmitting(true);
 
       const token = localStorage.getItem('token');
+
+      // Récupérer un dépôt (ex: le 1er)
+      const depotId =
+        (await fetch(`${API_BASE}/admin/depots`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+          .then(r => r.json())
+          .then(d => d.depots?.[0]?.id)) || null;
+
       const distributionData = {
         destinataire_id: destinataire.type === 'existing' ? destinataire.chef_id : null,
         destinataire_custom: destinataire.type === 'custom' ? {
@@ -271,9 +283,7 @@ const DirectDistributionPage: React.FC = () => {
           telephone: destinataire.telephone_custom,
           nom_chantier: destinataire.nom_chantier_custom
         } : null,
-        depot_id: (await fetch('http://localhost:5000/api/admin/depots', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        }).then(r => r.json()).then(d => d.depots?.[0]?.id)) || null,
+        depot_id: depotId,
         commentaire,
         items: cart.map(item => ({
           materiau_id: item.materiau.id,
@@ -291,7 +301,8 @@ const DirectDistributionPage: React.FC = () => {
         items_count: distributionData.items.length,
         items: distributionData.items
       });
-      const response = await fetch('http://localhost:5000/api/bons-livraison/direct', {
+
+      const response = await fetch(`${API_BASE}/bons-livraison/direct`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -325,7 +336,8 @@ const DirectDistributionPage: React.FC = () => {
         chef_id: '',
         nom_custom: '',
         adresse_custom: '',
-        telephone_custom: ''
+        telephone_custom: '',
+        nom_chantier_custom: ''
       });
       
       // Sauvegarder les données du bon pour l'impression
@@ -397,7 +409,7 @@ const DirectDistributionPage: React.FC = () => {
         description: entreeForm.description || `Réception de ${entreeForm.quantite} unités`
       };
 
-      const response = await fetch('http://localhost:5000/api/stock/add', {
+      const response = await fetch(`${API_BASE}/stock/add`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -411,7 +423,7 @@ const DirectDistributionPage: React.FC = () => {
         throw new Error(errorData.message || 'Erreur lors de l\'entrée de stock');
       }
 
-      const data = await response.json();
+      await response.json();
       
       // Succès
       alert(`Entrée de stock enregistrée avec succès !`);

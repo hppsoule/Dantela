@@ -47,6 +47,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import Layout from '../components/Layout';
+const API = (import.meta.env.VITE_API_BASE_URL ?? '/api').replace(/\/$/, '');
 
 interface ReportData {
   users: any;
@@ -108,10 +109,18 @@ const ReportsPage: React.FC = () => {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
       };
+// En dev (Vite) -> /api via proxy
+// En prod (Vercel) -> VITE_API_BASE_URL = https://dantela.onrender.com/api
+
 
       // Récupérer les données réelles depuis l'API
-      const response = await fetch('http://localhost:5000/api/reports/overview', { headers });
-      
+      //const response = await fetch('http://localhost:5000/api/reports/overview', { headers });
+      // --- avant ---
+// const response = await fetch('http://localhost:5000/api/reports/overview', { headers });
+
+// --- après ---
+const response = await fetch(`${API}/reports/overview`, { headers });
+
       if (!response.ok) {
         throw new Error('Erreur lors de la récupération des données');
       }
@@ -149,19 +158,19 @@ const ReportsPage: React.FC = () => {
         throw new Error('Session expirée');
       }
 
-      const response = await fetch('http://localhost:5000/api/reports/export', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          report_type: selectedReport,
-          format: format,
-          date_debut: dateRange.start,
-          date_fin: dateRange.end
-        }),
-      });
+      const response = await fetch(`${API}/reports/export`, {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${token}`,
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    report_type: selectedReport,
+    format,
+    date_debut: dateRange.start,
+    date_fin: dateRange.end,
+  }),
+});
 
       if (!response.ok) {
         throw new Error('Erreur lors de l\'export');

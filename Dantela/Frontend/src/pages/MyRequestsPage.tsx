@@ -30,6 +30,9 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import Layout from '../components/Layout';
+// URL de base de l'API : en dev => proxy Vite (/api), en prod => VITE_API_URL
+const API_BASE = import.meta.env.VITE_API_URL ?? '/api';
+
 
 interface DemandeItem {
   id: string;
@@ -97,79 +100,81 @@ const MyRequestsPage: React.FC = () => {
     return () => window.removeEventListener('languageChanged', handleLanguageChange);
   }, []);
 
-  const fetchDemandes = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError('');
+ const fetchDemandes = useCallback(async () => {
+  try {
+    setLoading(true);
+    setError('');
 
-      const token = localStorage.getItem('token');
-      if (!token) {
-        setError('Session expirée');
-        return;
-      }
-
-      const response = await fetch('http://localhost:5000/api/demandes', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Erreur lors de la récupération des demandes');
-      }
-
-      const data = await response.json();
-
-      if (data.success) {
-        setDemandes(data.demandes || []);
-      } else {
-        throw new Error(data.message || 'Erreur lors de la récupération des demandes');
-      }
-    } catch (err) {
-      console.error('Erreur lors du chargement des demandes:', err);
-      setError(err instanceof Error ? err.message : 'Erreur de connexion');
-    } finally {
-      setLoading(false);
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setError('Session expirée');
+      return;
     }
-  }, []);
 
-  useEffect(() => {
-    fetchDemandes();
-  }, [fetchDemandes]);
-
-  const fetchDemandeDetails = async (demandeId: string) => {
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        setError('Session expirée');
-        return;
+    const response = await fetch(`${API_BASE}/demandes`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
       }
+    });
 
-      const response = await fetch(`http://localhost:5000/api/demandes/${demandeId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Erreur lors de la récupération des détails');
-      }
-
-      const data = await response.json();
-
-      if (data.success) {
-        setSelectedDemande(data.demande);
-        setShowDetailsModal(true);
-      } else {
-        throw new Error(data.message || 'Erreur lors de la récupération des détails');
-      }
-    } catch (err) {
-      console.error('Erreur lors du chargement des détails:', err);
-      alert(err instanceof Error ? err.message : 'Erreur de connexion');
+    if (!response.ok) {
+      throw new Error('Erreur lors de la récupération des demandes');
     }
-  };
+
+    const data = await response.json();
+
+    if (data.success) {
+      setDemandes(data.demandes || []);
+    } else {
+      throw new Error(data.message || 'Erreur lors de la récupération des demandes');
+    }
+  } catch (err) {
+    console.error('Erreur lors du chargement des demandes:', err);
+    setError(err instanceof Error ? err.message : 'Erreur de connexion');
+  } finally {
+    setLoading(false);
+  }
+}, []); // API_BASE est constant (défini au module)
+
+// ...
+useEffect(() => {
+  fetchDemandes();
+}, [fetchDemandes]);
+
+const fetchDemandeDetails = async (demandeId: string) => {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setError('Session expirée');
+      return;
+    }
+
+    const response = await fetch(`${API_BASE}/demandes/${demandeId}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error('Erreur lors de la récupération des détails');
+    }
+
+    const data = await response.json();
+
+    if (data.success) {
+      setSelectedDemande(data.demande);
+      setShowDetailsModal(true);
+    } else {
+      throw new Error(data.message || 'Erreur lors de la récupération des détails');
+    }
+  } catch (err) {
+    console.error('Erreur lors du chargement des détails:', err);
+    alert(err instanceof Error ? err.message : 'Erreur de connexion');
+  }
+};
+
 
   // Filtrer les demandes
   const demandesFiltrees = demandes.filter((demande) => {

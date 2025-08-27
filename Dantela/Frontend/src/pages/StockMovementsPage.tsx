@@ -40,7 +40,7 @@ import 'jspdf-autotable';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import Layout from '../components/Layout';
-
+const API = (import.meta.env.VITE_API_BASE_URL ?? '/api').replace(/\/$/, '');
 interface MouvementStock {
   id: string;
   type_mouvement: string;
@@ -142,38 +142,40 @@ const StockMovementsPage: React.FC = () => {
         return;
       }
 
-      const headers = {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      };
+     const headers: HeadersInit = {
+  ...(localStorage.getItem('token')
+    ? { Authorization: `Bearer ${localStorage.getItem('token')}` }
+    : {}),
+  'Content-Type': 'application/json',
+};
 
-      // Construire les paramètres de requête
-      const params = new URLSearchParams();
-      if (filters.type_mouvement !== 'all') params.append('type_mouvement', filters.type_mouvement);
-      if (filters.date_debut) params.append('date_debut', filters.date_debut);
-      if (filters.date_fin) params.append('date_fin', filters.date_fin);
-      if (filters.search) params.append('search', filters.search);
+// Construire les paramètres de requête
+const params = new URLSearchParams();
+if (filters.type_mouvement !== 'all') params.append('type_mouvement', filters.type_mouvement);
+if (filters.date_debut) params.append('date_debut', filters.date_debut);
+if (filters.date_fin) params.append('date_fin', filters.date_fin);
+if (filters.search) params.append('search', filters.search);
 
-      // Récupérer les mouvements
-      const mouvementsResponse = await fetch(`http://localhost:5000/api/stock/movements?${params}`, { headers });
-      if (mouvementsResponse.ok) {
-        const mouvementsData = await mouvementsResponse.json();
-        setMouvements(mouvementsData.mouvements || []);
-      }
+// Récupérer les mouvements
+const mouvementsResponse = await fetch(`${API}/stock/movements?${params.toString()}`, { headers });
+if (mouvementsResponse.ok) {
+  const mouvementsData = await mouvementsResponse.json();
+  setMouvements(mouvementsData.mouvements || []);
+}
 
-      // Récupérer les statistiques
-      const statsResponse = await fetch(`http://localhost:5000/api/stock/stats?${params}`, { headers });
-      if (statsResponse.ok) {
-        const statsData = await statsResponse.json();
-        setStats(statsData.stats || {});
-      }
+// Récupérer les statistiques
+const statsResponse = await fetch(`${API}/stock/stats?${params.toString()}`, { headers });
+if (statsResponse.ok) {
+  const statsData = await statsResponse.json();
+  setStats(statsData.stats || {});
+}
 
-      // Récupérer les demandes pour l'export
-      const demandesResponse = await fetch('http://localhost:5000/api/demandes', { headers });
-      if (demandesResponse.ok) {
-        const demandesData = await demandesResponse.json();
-        setDemandes(demandesData.demandes || []);
-      }
+// Récupérer les demandes pour l'export
+const demandesResponse = await fetch(`${API}/demandes`, { headers });
+if (demandesResponse.ok) {
+  const demandesData = await demandesResponse.json();
+  setDemandes(demandesData.demandes || []);
+}
 
     } catch (error) {
       console.error('Erreur lors du chargement:', error);

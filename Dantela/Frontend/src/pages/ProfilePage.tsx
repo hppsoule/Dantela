@@ -36,6 +36,9 @@ import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import Layout from '../components/Layout';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+// En dev (Vite) -> /api via proxy
+// En prod (Vercel) -> définis VITE_API_BASE_URL = https://dantela.onrender.com/api
+const API = (import.meta.env.VITE_API_BASE_URL ?? '/api').replace(/\/$/, '');
 
 // Interfaces pour les données
 interface ProfileStats {
@@ -121,171 +124,169 @@ const ProfilePage: React.FC = () => {
   }, []);
 
   const fetchProfileData = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        setError('Session expirée');
-        return;
-      }
-
-      const headers = {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      };
-
-      // Récupérer le profil
-      const profileResponse = await fetch('http://localhost:5000/api/profile', { headers });
-      if (profileResponse.ok) {
-        const profileData = await profileResponse.json();
-        setProfileData(profileData.user);
-        setFormData({
-          nom: profileData.user.nom || '',
-          prenom: profileData.user.prenom || '',
-          telephone: profileData.user.telephone || '',
-          adresse: profileData.user.adresse || '',
-          nom_chantier: profileData.user.nom_chantier || ''
-        });
-      }
-
-      // Récupérer les statistiques du profil (pour magazinier)
-      if (user?.role === 'magazinier') {
-        const [statsResponse, movementsResponse, demandesResponse] = await Promise.all([
-          fetch('http://localhost:5000/api/profile/stats', { headers }),
-          fetch('http://localhost:5000/api/stock/movements?limit=5', { headers }),
-          fetch('http://localhost:5000/api/demandes?limit=5', { headers })
-        ]);
-
-        if (statsResponse.ok) {
-          const statsData = await statsResponse.json();
-          setProfileStats(statsData.stats || {});
-        }
-
-        if (movementsResponse.ok) {
-          const movementsData = await movementsResponse.json();
-          setRecentMovements(movementsData.mouvements || []);
-        }
-
-        if (demandesResponse.ok) {
-          const demandesData = await demandesResponse.json();
-          setRecentDemandes(demandesData.demandes || []);
-        }
-      }
-
-    } catch (error) {
-      console.error('Erreur lors du chargement du profil:', error);
-      setError('Erreur de connexion');
-    } finally {
-      setLoading(false);
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setError('Session expirée');
+      return;
     }
-  };
+
+    const headers = {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    };
+
+    // Profil
+    const profileResponse = await fetch(`${API}/profile`, { headers });
+    if (profileResponse.ok) {
+      const profileData = await profileResponse.json();
+      setProfileData(profileData.user);
+      setFormData({
+        nom: profileData.user.nom || '',
+        prenom: profileData.user.prenom || '',
+        telephone: profileData.user.telephone || '',
+        adresse: profileData.user.adresse || '',
+        nom_chantier: profileData.user.nom_chantier || ''
+      });
+    }
+
+    // Stats + derniers mouvements + dernières demandes (magazinier)
+    if (user?.role === 'magazinier') {
+      const [statsResponse, movementsResponse, demandesResponse] = await Promise.all([
+        fetch(`${API}/profile/stats`, { headers }),
+        fetch(`${API}/stock/movements?limit=5`, { headers }),
+        fetch(`${API}/demandes?limit=5`, { headers })
+      ]);
+
+      if (statsResponse.ok) {
+        const statsData = await statsResponse.json();
+        setProfileStats(statsData.stats || {});
+      }
+
+      if (movementsResponse.ok) {
+        const movementsData = await movementsResponse.json();
+        setRecentMovements(movementsData.mouvements || []);
+      }
+
+      if (demandesResponse.ok) {
+        const demandesData = await demandesResponse.json();
+        setRecentDemandes(demandesData.demandes || []);
+      }
+    }
+
+  } catch (error) {
+    console.error('Erreur lors du chargement du profil:', error);
+    setError('Erreur de connexion');
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   const handleUpdateProfile = async () => {
-    if (!formData.nom.trim() || !formData.prenom.trim()) {
-      alert(language === 'fr' ? 'Le nom et le prénom sont obligatoires' : 
-            language === 'en' ? 'First name and last name are required' : 
-            'Ad ve soyad gereklidir');
-      return;
+  if (!formData.nom.trim() || !formData.prenom.trim()) {
+    alert(language === 'fr' ? 'Le nom et le prénom sont obligatoires'
+         : language === 'en' ? 'First name and last name are required'
+         : 'Ad ve soyad gereklidir');
+    return;
+  }
+
+  if (user?.role === 'chef_chantier' && !formData.nom_chantier.trim()) {
+    alert(language === 'fr' ? 'Le nom du chantier est obligatoire'
+         : language === 'en' ? 'Site name is required'
+         : 'Şantiye adı gereklidir');
+    return;
+  }
+
+  try {
+    setSaving(true);
+    const token = localStorage.getItem('token');
+
+    const response = await fetch(`${API}/profile`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(formData),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Erreur lors de la mise à jour');
     }
 
-    if (user?.role === 'chef_chantier' && !formData.nom_chantier.trim()) {
-      alert(language === 'fr' ? 'Le nom du chantier est obligatoire' : 
-            language === 'en' ? 'Site name is required' : 
-            'Şantiye adı gereklidir');
-      return;
-    }
+    const data = await response.json();
+    setProfileData(data.user);
+    setIsEditing(false);
 
-    try {
-      setSaving(true);
-      const token = localStorage.getItem('token');
-      
-      const response = await fetch('http://localhost:5000/api/profile', {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData),
-      });
+    alert(language === 'fr' ? 'Profil mis à jour avec succès !'
+         : language === 'en' ? 'Profile updated successfully!'
+         : 'Profil başarıyla güncellendi!');
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Erreur lors de la mise à jour');
-      }
+  } catch (error) {
+    console.error('Erreur:', error);
+    alert(error instanceof Error ? error.message : 'Erreur lors de la mise à jour');
+  } finally {
+    setSaving(false);
+  }
+};
 
-      const data = await response.json();
-      setProfileData(data.user);
-      setIsEditing(false);
-      
-      alert(language === 'fr' ? 'Profil mis à jour avec succès !' : 
-            language === 'en' ? 'Profile updated successfully!' : 
-            'Profil başarıyla güncellendi!');
-
-    } catch (error) {
-      console.error('Erreur:', error);
-      alert(error instanceof Error ? error.message : 'Erreur lors de la mise à jour');
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const handleChangePassword = async () => {
-    if (!passwordForm.current_password || !passwordForm.new_password || !passwordForm.confirm_password) {
-      alert(language === 'fr' ? 'Tous les champs sont obligatoires' : 
-            language === 'en' ? 'All fields are required' : 
-            'Tüm alanlar gereklidir');
-      return;
+  if (!passwordForm.current_password || !passwordForm.new_password || !passwordForm.confirm_password) {
+    alert(language === 'fr' ? 'Tous les champs sont obligatoires'
+         : language === 'en' ? 'All fields are required'
+         : 'Tüm alanlar gereklidir');
+    return;
+  }
+
+  if (passwordForm.new_password !== passwordForm.confirm_password) {
+    alert(language === 'fr' ? 'Les nouveaux mots de passe ne correspondent pas'
+         : language === 'en' ? 'New passwords do not match'
+         : 'Yeni şifreler eşleşmiyor');
+    return;
+  }
+
+  if (passwordForm.new_password.length < 6) {
+    alert(language === 'fr' ? 'Le mot de passe doit contenir au moins 6 caractères'
+         : language === 'en' ? 'Password must be at least 6 characters'
+         : 'Şifre en az 6 karakter olmalıdır');
+    return;
+  }
+
+  try {
+    setSaving(true);
+    const token = localStorage.getItem('token');
+
+    const response = await fetch(`${API}/profile/password`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(passwordForm),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Erreur lors du changement de mot de passe');
     }
 
-    if (passwordForm.new_password !== passwordForm.confirm_password) {
-      alert(language === 'fr' ? 'Les nouveaux mots de passe ne correspondent pas' : 
-            language === 'en' ? 'New passwords do not match' : 
-            'Yeni şifreler eşleşmiyor');
-      return;
-    }
+    setPasswordForm({ current_password: '', new_password: '', confirm_password: '' });
+    setIsChangingPassword(false);
 
-    if (passwordForm.new_password.length < 6) {
-      alert(language === 'fr' ? 'Le mot de passe doit contenir au moins 6 caractères' : 
-            language === 'en' ? 'Password must be at least 6 characters' : 
-            'Şifre en az 6 karakter olmalıdır');
-      return;
-    }
+    alert(language === 'fr' ? 'Mot de passe changé avec succès !'
+         : language === 'en' ? 'Password changed successfully!'
+         : 'Şifre başarıyla değiştirildi!');
 
-    try {
-      setSaving(true);
-      const token = localStorage.getItem('token');
-      
-      const response = await fetch('http://localhost:5000/api/profile/password', {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(passwordForm),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Erreur lors du changement de mot de passe');
-      }
-
-      setPasswordForm({
-        current_password: '',
-        new_password: '',
-        confirm_password: ''
-      });
-      setIsChangingPassword(false);
-      
-      alert(language === 'fr' ? 'Mot de passe changé avec succès !' : 
-            language === 'en' ? 'Password changed successfully!' : 
-            'Şifre başarıyla değiştirildi!');
-
-    } catch (error) {
-      console.error('Erreur:', error);
-      alert(error instanceof Error ? error.message : 'Erreur lors du changement de mot de passe');
-    } finally {
-      setSaving(false);
-    }
-  };
+  } catch (error) {
+    console.error('Erreur:', error);
+    alert(error instanceof Error ? error.message : 'Erreur lors du changement de mot de passe');
+  } finally {
+    setSaving(false);
+  }
+};
 
   const handleCancel = () => {
     setFormData({

@@ -16,6 +16,8 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import Layout from '../components/Layout';
+//const API_BASE = import.meta.env.VITE_API_URL ?? '/api';
+
 
 interface Depot {
   id: string;
@@ -82,172 +84,169 @@ const DepotManagementPage: React.FC = () => {
     fetchData();
   }, []);
 
-  const fetchData = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const headers = {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      };
+// en haut du fichier (optionnel) : base configurable
+const API_BASE = import.meta.env.VITE_API_URL ?? '/api';
 
-      const [depotsResponse, magaziniersResponse] = await Promise.all([
-        fetch('http://localhost:5000/api/admin/depots', { headers }),
-        fetch('http://localhost:5000/api/admin/magaziniers', { headers })
-      ]);
+const fetchData = async () => {
+  try {
+    const token = localStorage.getItem('token');
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      if (depotsResponse.ok) {
-        const depotsData = await depotsResponse.json();
-        setDepots(depotsData.depots || []);
-      }
+    const [depotsResponse, magaziniersResponse] = await Promise.all([
+      fetch(`${API_BASE}/admin/depots`, { headers }),
+      fetch(`${API_BASE}/admin/magaziniers`, { headers }),
+    ]);
 
-      if (magaziniersResponse.ok) {
-        const magaziniersData = await magaziniersResponse.json();
-        setMagaziniers(magaziniersData.magaziniers || []);
-      }
-
-    } catch (error) {
-      console.error('Erreur lors du chargement:', error);
-      setError('Erreur de connexion');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleCreateDepot = async () => {
-    if (!formData.nom || !formData.adresse) {
-      alert('Le nom et l\'adresse sont obligatoires');
-      return;
+    if (depotsResponse.ok) {
+      const depotsData = await depotsResponse.json();
+      setDepots(depotsData.depots || []);
     }
 
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/admin/depots', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        alert(data.message);
-        setShowCreateModal(false);
-        resetForm();
-        fetchData();
-      } else {
-        const errorData = await response.json();
-        alert(errorData.message);
-      }
-    } catch (error) {
-      console.error('Erreur:', error);
-      alert('Erreur lors de la création du dépôt');
+    if (magaziniersResponse.ok) {
+      const magaziniersData = await magaziniersResponse.json();
+      setMagaziniers(magaziniersData.magaziniers || []);
     }
-  };
+  } catch (error) {
+    console.error('Erreur lors du chargement:', error);
+    setError('Erreur de connexion');
+  } finally {
+    setLoading(false);
+  }
+};
 
-  const handleUpdateDepot = async () => {
-    if (!selectedDepot || !formData.nom || !formData.adresse) {
-      alert('Le nom et l\'adresse sont obligatoires');
-      return;
-    }
+const handleCreateDepot = async () => {
+  if (!formData.nom || !formData.adresse) {
+    alert("Le nom et l'adresse sont obligatoires");
+    return;
+  }
 
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/admin/depots/${selectedDepot.id}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData),
-      });
+  try {
+    const token = localStorage.getItem('token');
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      if (response.ok) {
-        const data = await response.json();
-        alert(data.message);
-        setShowEditModal(false);
-        resetForm();
-        setSelectedDepot(null);
-        fetchData();
-      } else {
-        const errorData = await response.json();
-        alert(errorData.message);
-      }
-    } catch (error) {
-      console.error('Erreur:', error);
-      alert('Erreur lors de la mise à jour du dépôt');
-    }
-  };
+    const response = await fetch(`${API_BASE}/admin/depots`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(formData),
+    });
 
-  const handleDeleteDepot = async (force = false) => {
-    if (!selectedDepot) return;
-
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/admin/depots/${selectedDepot.id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ force }),
-      });
-
+    if (response.ok) {
       const data = await response.json();
-      
-      if (response.ok) {
-        alert(data.message);
-        setShowDeleteModal(false);
-        setSelectedDepot(null);
-        fetchData();
-      } else {
-        // Si erreur car dépôt contient des données, proposer suppression forcée
-        if (data.message.includes('contient') || data.message.includes('associée')) {
-          const confirmForce = window.confirm(
-            `${data.message}\n\nVoulez-vous désactiver le dépôt au lieu de le supprimer définitivement ?`
-          );
-          
-          if (confirmForce) {
-            handleDeleteDepot(true); // Suppression forcée (désactivation)
-          }
-        } else {
-          alert(data.message);
-        }
-      }
-    } catch (error) {
-      console.error('Erreur:', error);
-      alert('Erreur lors de la suppression du dépôt');
+      alert(data.message);
+      setShowCreateModal(false);
+      resetForm();
+      fetchData();
+    } else {
+      const errorData = await response.json();
+      alert(errorData.message);
     }
-  };
+  } catch (error) {
+    console.error('Erreur:', error);
+    alert('Erreur lors de la création du dépôt');
+  }
+};
 
-  const handleAssignMagazinier = async (depotId: string, magazinierId: string) => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/admin/depots/${depotId}/assign-magazinier`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ magazinier_id: magazinierId }),
-      });
+const handleUpdateDepot = async () => {
+  if (!selectedDepot || !formData.nom || !formData.adresse) {
+    alert("Le nom et l'adresse sont obligatoires");
+    return;
+  }
 
-      if (response.ok) {
-        const data = await response.json();
-        alert(data.message);
-        setShowAssignModal(false);
-        setSelectedDepot(null);
-        fetchData();
-      } else {
-        const errorData = await response.json();
-        alert(errorData.message);
-      }
-    } catch (error) {
-      console.error('Erreur:', error);
-      alert('Erreur lors de l\'attribution du magazinier');
+  try {
+    const token = localStorage.getItem('token');
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const response = await fetch(`${API_BASE}/admin/depots/${selectedDepot.id}`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify(formData),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      alert(data.message);
+      setShowEditModal(false);
+      resetForm();
+      setSelectedDepot(null);
+      fetchData();
+    } else {
+      const errorData = await response.json();
+      alert(errorData.message);
     }
-  };
+  } catch (error) {
+    console.error('Erreur:', error);
+    alert('Erreur lors de la mise à jour du dépôt');
+  }
+};
+
+const handleDeleteDepot = async (force = false) => {
+  if (!selectedDepot) return;
+
+  try {
+    const token = localStorage.getItem('token');
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const response = await fetch(`${API_BASE}/admin/depots/${selectedDepot.id}`, {
+      method: 'DELETE',
+      headers,
+      body: JSON.stringify({ force }),
+    });
+
+    const data = await response.json();
+
+    if (response.ok) {
+      alert(data.message);
+      setShowDeleteModal(false);
+      setSelectedDepot(null);
+      fetchData();
+    } else {
+      if (data.message?.includes('contient') || data.message?.includes('associée')) {
+        const confirmForce = window.confirm(
+          `${data.message}\n\nVoulez-vous désactiver le dépôt au lieu de le supprimer définitivement ?`
+        );
+        if (confirmForce) handleDeleteDepot(true);
+      } else {
+        alert(data.message);
+      }
+    }
+  } catch (error) {
+    console.error('Erreur:', error);
+    alert('Erreur lors de la suppression du dépôt');
+  }
+};
+
+const handleAssignMagazinier = async (depotId: string, magazinierId: string) => {
+  try {
+    const token = localStorage.getItem('token');
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const response = await fetch(`${API_BASE}/admin/depots/${depotId}/assign-magazinier`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ magazinier_id: magazinierId }),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      alert(data.message);
+      setShowAssignModal(false);
+      setSelectedDepot(null);
+      fetchData();
+    } else {
+      const errorData = await response.json();
+      alert(errorData.message);
+    }
+  } catch (error) {
+    console.error('Erreur:', error);
+    alert("Erreur lors de l'attribution du magazinier");
+  }
+};
+
 
   const resetForm = () => {
     setFormData({

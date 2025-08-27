@@ -24,6 +24,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import Layout from '../components/Layout';
+const API = (import.meta.env.VITE_API_BASE_URL ?? '/api').replace(/\/$/, '');
 
 interface User {
   id: string;
@@ -94,135 +95,121 @@ const UserManagementPage: React.FC = () => {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, []);// 🔝 À mettre en haut du fichier (une seule fois)
 
-  const fetchData = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const headers = {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      };
+const authHeaders = () => {
+  const token = localStorage.getItem('token');
+  return {
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    'Content-Type': 'application/json',
+  } as HeadersInit;
+};
 
-      // Récupérer les utilisateurs en attente
-      const pendingResponse = await fetch('http://localhost:5000/api/admin/pending-users', { headers });
-      if (pendingResponse.ok) {
-        const pendingData = await pendingResponse.json();
-        setPendingUsers(pendingData.users || []);
-      }
+// ===== fetchData =====
+const fetchData = async () => {
+  try {
+    const headers = authHeaders();
 
-      // Récupérer tous les utilisateurs actifs
-      const usersResponse = await fetch('http://localhost:5000/api/admin/users?is_active=true', { headers });
-      if (usersResponse.ok) {
-        const usersData = await usersResponse.json();
-        setUsers(usersData.users || []);
-      }
-
-    } catch (error) {
-      console.error('Erreur lors du chargement:', error);
-      setError('Erreur de connexion');
-    } finally {
-      setLoading(false);
+    // Utilisateurs en attente
+    const pendingResponse = await fetch(`${API}/admin/pending-users`, { headers });
+    if (pendingResponse.ok) {
+      const pendingData = await pendingResponse.json();
+      setPendingUsers(pendingData.users || []);
     }
-  };
 
-  const handleValidateUser = async (userId: string, action: 'approve' | 'reject') => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/admin/validate-user/${userId}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ action }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        alert(data.message);
-        fetchData(); // Recharger les données
-      } else {
-        const errorData = await response.json();
-        alert(errorData.message);
-      }
-    } catch (error) {
-      console.error('Erreur:', error);
-      alert('Erreur lors de la validation');
+    // Utilisateurs actifs
+    const usersResponse = await fetch(`${API}/admin/users?is_active=true`, { headers });
+    if (usersResponse.ok) {
+      const usersData = await usersResponse.json();
+      setUsers(usersData.users || []);
     }
-  };
 
-  const resetEditForm = () => {
-    setEditForm({
-      nom: '',
-      prenom: '',
-      email: '',
-      telephone: '',
-      adresse: '',
-      nom_chantier: ''
+  } catch (error) {
+    console.error('Erreur lors du chargement:', error);
+    setError('Erreur de connexion');
+  } finally {
+    setLoading(false);
+  }
+};
+
+// ===== handleValidateUser =====
+const handleValidateUser = async (userId: string, action: 'approve' | 'reject') => {
+  try {
+    const response = await fetch(`${API}/admin/validate-user/${userId}`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ action }),
     });
-  };
 
-  const handleUpdateUser = async () => {
-    if (!selectedUser || !('is_active' in selectedUser)) return;
-
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/admin/users/${selectedUser.id}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(editForm),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        alert(data.message);
-        setShowEditModal(false);
-        setSelectedUser(null);
-        resetEditForm();
-        fetchData();
-      } else {
-        const errorData = await response.json();
-        alert(errorData.message);
-      }
-    } catch (error) {
-      console.error('Erreur:', error);
-      alert('Erreur lors de la mise à jour');
+    if (response.ok) {
+      const data = await response.json();
+      alert(data.message);
+      fetchData(); // Recharger les données
+    } else {
+      const errorData = await response.json().catch(() => ({}));
+      alert(errorData.message || 'Erreur lors de la validation');
     }
-  };
+  } catch (error) {
+    console.error('Erreur:', error);
+    alert('Erreur lors de la validation');
+  }
+};
 
-  const handleDeleteUser = async (force: boolean = false) => {
-    if (!selectedUser || !('is_active' in selectedUser)) return;
+// ===== handleUpdateUser =====
+const handleUpdateUser = async () => {
+  if (!selectedUser || !('is_active' in selectedUser)) return;
 
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/admin/users/${selectedUser.id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ force }),
-      });
+  try {
+    const response = await fetch(`${API}/admin/users/${selectedUser.id}`, {
+      method: 'PUT',
+      headers: authHeaders(),
+      body: JSON.stringify(editForm),
+    });
 
-      if (response.ok) {
-        const data = await response.json();
-        alert(data.message);
-        setShowDeleteModal(false);
-        setSelectedUser(null);
-        fetchData();
-      } else {
-        const errorData = await response.json();
-        alert(errorData.message);
-      }
-    } catch (error) {
-      console.error('Erreur:', error);
-      alert('Erreur lors de la suppression');
+    if (response.ok) {
+      const data = await response.json();
+      alert(data.message);
+      setShowEditModal(false);
+      setSelectedUser(null);
+      resetEditForm();
+      fetchData();
+    } else {
+      const errorData = await response.json().catch(() => ({}));
+      alert(errorData.message || 'Erreur lors de la mise à jour');
     }
-  };
+  } catch (error) {
+    console.error('Erreur:', error);
+    alert('Erreur lors de la mise à jour');
+  }
+};
+
+// ===== handleDeleteUser =====
+const handleDeleteUser = async (force: boolean = false) => {
+  if (!selectedUser || !('is_active' in selectedUser)) return;
+
+  try {
+    const response = await fetch(`${API}/admin/users/${selectedUser.id}`, {
+      method: 'DELETE',
+      headers: authHeaders(),
+      body: JSON.stringify({ force }),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      alert(data.message);
+      setShowDeleteModal(false);
+      setSelectedUser(null);
+      fetchData();
+    } else {
+      const errorData = await response.json().catch(() => ({}));
+      alert(errorData.message || 'Erreur lors de la suppression');
+    }
+  } catch (error) {
+    console.error('Erreur:', error);
+    alert('Erreur lors de la suppression');
+  }
+};
+
 
   // Filtrer les utilisateurs en attente
   const pendingUsersFiltres = pendingUsers.filter(user => {
