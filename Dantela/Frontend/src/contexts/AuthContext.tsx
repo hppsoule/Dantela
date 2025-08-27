@@ -1,129 +1,96 @@
-// src/contexts/AuthContext.tsx
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User } from '../types';
 
 interface AuthContextType {
   user: User | null;
-  loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (userData: any) => Promise<any>;
   logout: () => void;
+  loading: boolean;
 }
 
-// 🔗 Base API : en dev => '/api' (proxy Vite) | en prod => VITE_API_BASE_URL (ex: https://dantela.onrender.com)
+/**
+ * Base API universelle :
+ * - En DEV (Vite): '/api' → passe par le proxy Vite vers http://localhost:5000
+ * - En PROD (Vercel): '/api' → réécrit via vercel.json vers https://dantela.onrender.com/api
+ * - Optionnel: tu peux définir VITE_API_BASE_URL pour forcer une autre base (ex: https://dantela.onrender.com/api)
+ */
 const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? '/api').replace(/\/$/, '');
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const useAuth = () => {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be used within an AuthProvider');
-  return ctx;
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Helper pour entêtes avec token
-  const authHeaders = (token?: string) => {
-    const headers: HeadersInit = { 'Content-Type': 'application/json' };
-    if (token) headers.Authorization = `Bearer ${token}`;
-    return headers;
-  };
-
-  // Charge le profil depuis le token (au montage)
-  const loadProfileFromToken = async () => {
+  useEffect(() => {
     const token = localStorage.getItem('token');
-    const cachedUser = localStorage.getItem('user');
-
-    if (!token) {
-      setUser(null);
-      setLoading(false);
-      return;
-    }
-
-    try {
-      // On tente d'abord d'utiliser le cache pour éviter un flash
-      if (cachedUser) {
-        try {
-          setUser(JSON.parse(cachedUser));
-        } catch {
-          localStorage.removeItem('user');
-        }
-      }
-
-      // On rafraîchit avec l’API (source de vérité)
-      const res = await fetch(`${API_BASE}/api/profile`, { headers: authHeaders(token) });
-      if (!res.ok) {
-        // token invalide/expiré
+    const userData = localStorage.getItem('user');
+    if (token && userData) {
+      try {
+        setUser(JSON.parse(userData));
+      } catch {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
-        setUser(null);
-      } else {
-        const data = await res.json();
-        if (data?.user) {
-          setUser(data.user);
-          localStorage.setItem('user', JSON.stringify(data.user));
-        }
       }
-    } catch {
-      // en cas d’erreur réseau, on garde le cache si présent
-    } finally {
-      setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    loadProfileFromToken();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    setLoading(false);
   }, []);
 
   const login = async (email: string, password: string) => {
-    // Appel à l’API login
-    const res = await fetch(`${API_BASE}/api/auth/login`, {
-      method: 'POST',
-      headers: authHeaders(),
-      body: JSON.stringify({ email, password }),
-    });
+    try {
+      const res = await fetch(`${API_BASE}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
 
-    const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        // Essaye de lire une réponse JSON, sinon remonte un message générique
+        let msg = 'Erreur de connexion';
+        try {
+          const j = await res.json();
+          msg = j.message || msg;
+        } catch {}
+        throw new Error(msg);
+      }
 
-    if (!res.ok || !data?.success) {
-      throw new Error(data?.message || 'Erreur de connexion');
-    }
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message || 'Erreur de connexion');
 
-    // Stockage token + user
-    const token: string = data.token;
-    if (!token) throw new Error('Token manquant dans la réponse');
-
-    localStorage.setItem('token', token);
-
-    // Si l’API renvoie user, on le stocke ; sinon on recharge via /api/profile
-    if (data.user) {
+      localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
       setUser(data.user);
-    } else {
-      await loadProfileFromToken();
+    } catch (err) {
+      console.error('Erreur de connexion:', err);
+      throw err;
     }
   };
 
   const register = async (userData: any) => {
-    const res = await fetch(`${API_BASE}/api/auth/register`, {
-      method: 'POST',
-      headers: authHeaders(),
-      body: JSON.stringify(userData),
-    });
+    try {
+      const res = await fetch(`${API_BASE}/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(userData),
+      });
 
-    const data = await res.json().catch(() => ({}));
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || "Erreur lors de l'inscription");
 
-    if (!res.ok || !data?.success) {
-      throw new Error(data?.message || "Erreur lors de l'inscription");
+      return data;
+    } catch (err) {
+      console.error("Erreur d'inscription:", err);
+      throw err;
     }
-
-    // Selon ta logique, l’inscription ne connecte pas forcément l’utilisateur.
-    // Si l’API renvoie token + user, tu peux faire comme pour login ici.
-    return data;
   };
 
   const logout = () => {
@@ -132,13 +99,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null);
   };
 
-  const value: AuthContextType = {
-    user,
-    loading,
-    login,
-    register,
-    logout,
-  };
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={{ user, login, register, logout, loading }}>
+      {children}
+    </AuthContext.Provider>
+  );
 };
