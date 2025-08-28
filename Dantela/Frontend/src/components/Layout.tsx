@@ -1,39 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, NavLink, useNavigate } from 'react-router-dom';
 import {
-  Building2,
-  LogOut,
-  Menu,
-  X,
-  Home,
-  Package,
-  Users,
-  FileText,
-  Settings,
-  Truck,
-  ClipboardList,
-  Search,
-  Sun,
-  Bell,
-  User,
-  ShoppingCart,
-  List,
-  Monitor,
-  History,
-  Activity,
+  Building2, LogOut, Menu, X, Home, Package, Users, FileText, Settings,
+  Truck, ClipboardList, Search, Sun, Bell, User, ShoppingCart, List,
+  Monitor, History,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useNotifications } from '../contexts/NotificationContext';
 import LanguageSelector from './LanguageSelector';
 
-interface LayoutProps {
-  children: React.ReactNode;
-}
+interface LayoutProps { children: React.ReactNode; }
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { user, logout } = useAuth();
-  const { t, language } = useLanguage();
+  const { language } = useLanguage();
   const { unreadCount } = useNotifications();
   const [, forceUpdate] = useState({});
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -41,40 +22,48 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const handleLanguageChange = () => { forceUpdate({}); };
+    const handleLanguageChange = () => forceUpdate({});
     window.addEventListener('languageChanged', handleLanguageChange);
     return () => window.removeEventListener('languageChanged', handleLanguageChange);
   }, []);
 
+  // Empêche le scroll de fond quand le tiroir mobile est ouvert
+  useEffect(() => {
+    if (sidebarOpen) document.body.style.overflow = 'hidden';
+    else document.body.style.overflow = '';
+    return () => { document.body.style.overflow = ''; };
+  }, [sidebarOpen]);
+
+  const baseItems = [
+    { icon: Home, label: language === 'fr' ? "Vue d'ensemble" : language === 'en' ? 'Overview' : 'Genel Bakış', path: '/dashboard' },
+  ];
+
   const getMenuItems = () => {
-    const baseItems = [
-      { icon: Home, label: language === 'fr' ? "Vue d'ensemble" : language === 'en' ? 'Overview' : 'Genel Bakış', path: '/dashboard' },
-    ];
     switch (user?.role) {
       case 'directeur':
         return [
           ...baseItems,
-          { icon: Package, label: language === 'fr' ? 'Catalogue' : language === 'en' ? 'Catalog' : 'Katalog', path: '/catalogue' },
-          { icon: Users, label: language === 'fr' ? 'Gestion Utilisateurs' : language === 'en' ? 'User Management' : 'Kullanıcı Yönetimi', path: '/users' },
-          { icon: Building2, label: language === 'fr' ? 'Gestion des dépôts' : language === 'en' ? 'Depot Management' : 'Depo Yönetimi', path: '/depots' },
-          { icon: FileText, label: language === 'fr' ? 'Rapports' : language === 'en' ? 'Reports' : 'Raporlar', path: '/reports' },
-          { icon: Settings, label: language === 'fr' ? 'Paramètres' : language === 'en' ? 'Settings' : 'Ayarlar', path: '/settings' },
+          { icon: Package,    label: language === 'fr' ? 'Catalogue'          : language === 'en' ? 'Catalog'           : 'Katalog',           path: '/catalogue' },
+          { icon: Users,      label: language === 'fr' ? 'Gestion Utilisateurs': language === 'en' ? 'User Management'   : 'Kullanıcı Yönetimi', path: '/users' },
+          { icon: Building2,  label: language === 'fr' ? 'Gestion des dépôts'  : language === 'en' ? 'Depot Management'  : 'Depo Yönetimi',     path: '/depots' },
+          { icon: FileText,   label: language === 'fr' ? 'Rapports'            : language === 'en' ? 'Reports'           : 'Raporlar',          path: '/reports' },
+          { icon: Settings,   label: language === 'fr' ? 'Paramètres'          : language === 'en' ? 'Settings'          : 'Ayarlar',           path: '/settings' },
         ];
       case 'magazinier':
         return [
-          { icon: Monitor, label: language === 'fr' ? "Vue d'ensemble" : language === 'en' ? 'Overview' : 'Genel Bakış', path: '/dashboard' },
-          { icon: List, label: language === 'fr' ? 'Catalogue' : language === 'en' ? 'Catalog' : 'Katalog', path: '/catalogue' },
-          { icon: ClipboardList, label: language === 'fr' ? 'Gestion Commandes' : language === 'en' ? 'Order Management' : 'Sipariş Yönetimi', path: '/gestion-commandes' },
-          { icon: Truck, label: language === 'fr' ? 'Distribution Directe' : language === 'en' ? 'Direct Distribution' : 'Doğrudan Dağıtım', path: '/distribution-directe' },
-          { icon: ShoppingCart, label: language === 'fr' ? 'Mouvements Stock' : language === 'en' ? 'Stock Movements' : 'Stok Hareketleri', path: '/stocks' },
-          { icon: History, label: language === 'fr' ? 'Historique' : language === 'en' ? 'History' : 'Geçmiş', path: '/historique' },
+          { icon: Monitor,    label: language === 'fr' ? "Vue d'ensemble"      : language === 'en' ? 'Overview'          : 'Genel Bakış',       path: '/dashboard' },
+          { icon: List,       label: language === 'fr' ? 'Catalogue'           : language === 'en' ? 'Catalog'           : 'Katalog',           path: '/catalogue' },
+          { icon: ClipboardList, label: language === 'fr' ? 'Gestion Commandes': language === 'en' ? 'Order Management'  : 'Sipariş Yönetimi',  path: '/gestion-commandes' },
+          { icon: Truck,      label: language === 'fr' ? 'Distribution Directe': language === 'en' ? 'Direct Distribution': 'Doğrudan Dağıtım', path: '/distribution-directe' },
+          { icon: ShoppingCart, label: language === 'fr' ? 'Mouvements Stock'  : language === 'en' ? 'Stock Movements'   : 'Stok Hareketleri',  path: '/stocks' },
+          { icon: History,    label: language === 'fr' ? 'Historique'          : language === 'en' ? 'History'           : 'Geçmiş',            path: '/historique' },
         ];
       case 'chef_chantier':
         return [
           ...baseItems,
-          { icon: Package, label: language === 'fr' ? 'Catalogue matériaux' : language === 'en' ? 'Materials Catalog' : 'Malzeme Kataloğu', path: '/catalogue' },
-          { icon: ClipboardList, label: language === 'fr' ? 'Mes Demandes' : language === 'en' ? 'My Requests' : 'Taleplerim', path: '/mes-demandes' },
-          { icon: User, label: language === 'fr' ? 'Mon Profil' : language === 'en' ? 'My Profile' : 'Profilim', path: '/profile' },
+          { icon: Package,    label: language === 'fr' ? 'Catalogue matériaux' : language === 'en' ? 'Materials Catalog' : 'Malzeme Kataloğu',  path: '/catalogue' },
+          { icon: ClipboardList, label: language === 'fr' ? 'Mes Demandes'     : language === 'en' ? 'My Requests'       : 'Taleplerim',        path: '/mes-demandes' },
+          { icon: User,       label: language === 'fr' ? 'Mon Profil'          : language === 'en' ? 'My Profile'        : 'Profilim',          path: '/profile' },
         ];
       default:
         return baseItems;
@@ -85,18 +74,18 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const isActivePath = (path: string) => location.pathname === path || location.pathname.startsWith(path + '/');
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
-      {/* Sidebar */}
+    <div className="min-h-screen bg-gray-50">
+      {/* Sidebar FIXE */}
       <div
-        className={`fixed top-0 left-0 bottom-0 w-64 bg-gradient-to-b from-teal-800 to-teal-900 transform
-        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-        transition-transform duration-300 ease-in-out
-        lg:translate-x-0 lg:static
-        z-50`}
+        className={`fixed top-0 left-0 bottom-0 w-64 bg-gradient-to-b from-teal-800 to-teal-900
+                    transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+                    transition-transform duration-300 ease-in-out
+                    lg:translate-x-0
+                    z-50`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Logo */}
-        <div className="flex items-center justify-center h-20 px-4 bg-teal-900 border-b border-teal-700">
+        <div className="flex items-center justify-center h-16 px-4 bg-teal-900 border-b border-teal-700">
           <div className="flex items-center space-x-3">
             <div className="bg-white p-2 rounded-lg">
               <Building2 className="w-6 h-6 text-teal-600" />
@@ -105,17 +94,15 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
         </div>
 
-        {/* Title (magasinier) */}
+        {/* Titre role */}
         {user?.role === 'magazinier' && (
           <div className="px-4 py-3 bg-teal-800 border-b border-teal-700">
-            <p className="text-sm font-medium text-white">
-              MENU {language === 'fr' ? 'MAGAZINIER' : language === 'en' ? 'WAREHOUSE MANAGER' : 'DEPO SORUMLUSU'}
-            </p>
+            <p className="text-sm font-medium text-white">MENU {language === 'fr' ? 'MAGAZINIER' : language === 'en' ? 'WAREHOUSE MANAGER' : 'DEPO SORUMLUSU'}</p>
           </div>
         )}
 
-        {/* Menu */}
-        <nav className="mt-4">
+        {/* Nav items */}
+        <nav className="mt-2">
           {menuItems.map((item) => (
             <NavLink
               key={item.path}
@@ -123,9 +110,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               onClick={() => setSidebarOpen(false)}
               className={({ isActive }) =>
                 `flex items-center px-6 py-3 transition-colors duration-200 relative
-                ${isActive || isActivePath(item.path)
-                  ? 'bg-white/20 text-white font-medium'
-                  : 'text-gray-200 hover:bg-white/10 hover:text-white'}`
+                 ${isActive || isActivePath(item.path) ? 'bg-white/20 text-white font-medium' : 'text-gray-200 hover:bg-white/10 hover:text-white'}`
               }
             >
               {isActivePath(item.path) && <div className="absolute left-0 top-0 bottom-0 w-1 bg-white" />}
@@ -135,7 +120,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           ))}
         </nav>
 
-        {/* Profil */}
+        {/* Profil en bas */}
         <div className="absolute bottom-0 w-full p-4">
           <div className="bg-teal-800 rounded-lg p-4">
             <div className="flex items-center space-x-3 mb-3">
@@ -160,14 +145,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         </div>
       </div>
 
-      {/* Main (plus de lg:ml-64) */}
-      <div className="flex-1">
-        {/* Header */}
-        <div className="bg-gradient-to-r from-teal-600 to-teal-700 shadow-sm h-16 flex items-center justify-between px-6">
-          <button
-            onClick={() => setSidebarOpen((v) => !v)}
-            className="lg:hidden text-white hover:text-gray-200"
-          >
+      {/* HEADER FIXE (décalé de la sidebar en lg) */}
+      <header className="fixed top-0 left-0 right-0 lg:ml-64 z-30 bg-gradient-to-r from-teal-600 to-teal-700 h-16 shadow-sm">
+        <div className="h-full flex items-center justify-between px-6">
+          <button onClick={() => setSidebarOpen((v) => !v)} className="lg:hidden text-white hover:text-gray-200">
             {sidebarOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>
 
@@ -183,7 +164,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             </div>
           </div>
 
-          {/* Right icons */}
+          {/* Actions */}
           <div className="flex items-center space-x-4">
             <button className="text-white hover:text-gray-200">
               <Sun className="w-6 h-6" />
@@ -202,29 +183,29 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               <p className="text-xs text-gray-200 capitalize">{user?.role?.replace('_', ' ')}</p>
             </div>
             <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center">
-              <span className="text-teal-600 text-sm font-semibold">
-                {user?.prenom?.charAt(0)}{user?.nom?.charAt(0)}
-              </span>
+              <span className="text-teal-600 text-sm font-semibold">{user?.prenom?.charAt(0)}{user?.nom?.charAt(0)}</span>
             </div>
           </div>
         </div>
+      </header>
 
-        {/* Content */}
-        <main className="p-6 bg-gray-100 min-h-screen">{children}</main>
+      {/* MAIN : seul à scroller */}
+      <main className="pt-16 lg:ml-64 h-screen overflow-y-auto bg-gray-100">
+        <div className="p-6">
+          {children}
+        </div>
 
-        {/* Footer */}
+        {/* Footer dans la zone scrollable */}
         <footer className="bg-white border-t border-gray-200 px-6 py-4">
           <div className="flex items-center justify-between text-sm text-gray-600">
             <span>203 Boulevard de l'OCAM, Mvog Mbi - Yaoundé</span>
             <span>669790437</span>
-            <a href="http://dantela.cm/" className="text-teal-600 hover:text-teal-800">
-              http://dantela.cm/
-            </a>
+            <a href="http://dantela.cm/" className="text-teal-600 hover:text-teal-800">http://dantela.cm/</a>
           </div>
         </footer>
-      </div>
+      </main>
 
-      {/* Overlay */}
+      {/* OVERLAY mobile (au-dessus du header/contenu, sous la sidebar) */}
       {sidebarOpen && (
         <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setSidebarOpen(false)} />
       )}
