@@ -21,9 +21,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 
-//const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
-// En dev (Vite) -> /api via proxy
-// En prod (Vercel) -> VITE_API_BASE_URL doit être défini = https://dantela.onrender.com/api
+// Base API (dev: /api via proxy Vite, prod: /api via vercel.json ou VITE_API_BASE_URL)
 const API = (import.meta.env.VITE_API_BASE_URL ?? '/api').replace(/\/$/, '');
 
 interface Demande {
@@ -94,284 +92,280 @@ const OrderManagementPage: React.FC = () => {
     return () => window.removeEventListener('languageChanged', handleLanguageChange);
   }, []);
 
+  // Headers avec token (sans Authorization si pas de token)
+  const authHeaders = (): HeadersInit => {
+    const token = localStorage.getItem('token');
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) headers.Authorization = `Bearer ${token}`;
+    return headers;
+  };
+
+  // Récupérer la liste des demandes
+  const fetchDemandes = async () => {
+    try {
+      setLoading(true);
+      setError('');
+
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setError('Session expirée. Veuillez vous reconnecter.');
+        return;
+      }
+
+      // ✅ Corrigé: pas de /api en double
+      const res = await fetch(`${API}/demandes`, { headers: authHeaders() });
+
+      if (!res.ok) throw new Error(`Erreur HTTP: ${res.status}`);
+
+      const data = await res.json();
+      if (data.success) {
+        setDemandes(data.demandes || []);
+      } else {
+        throw new Error(data.message || 'Erreur lors du chargement des demandes');
+      }
+    } catch (err) {
+      console.error('❌ Erreur lors du chargement des demandes:', err);
+      setError(err instanceof Error ? err.message : 'Erreur de connexion au serveur');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Charger au montage (⚠️ un seul useEffect)
   useEffect(() => {
     fetchDemandes();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const authHeaders = () => {
-    const token = localStorage.getItem('token');
-    return {
-      Authorization: token ? `Bearer ${token}` : '',
-      'Content-Type': 'application/json',
-    };
+  // Détails d’une demande
+  const fetchDemandeDetails = async (demandeId: string) => {
+    try {
+      setError('');
+
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setError('Session expirée');
+        return;
+      }
+
+      console.log('📋 Récupération détails demande:', demandeId);
+
+      const response = await fetch(`${API}/demandes/${demandeId}`, {
+        headers: authHeaders(),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Erreur HTTP: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (data.success && data.demande) {
+        setSelectedDemande(data.demande);
+        setValidationForm({
+          action: 'approve',
+          commentaire: '',
+          items: (data.demande.items || []).map((item: any) => ({
+            id: item.id,
+            materiau_nom: item.materiau_nom,
+            code_produit: item.code_produit,
+            unite: item.unite,
+            quantite_demandee: item.quantite_demandee,
+            quantite_accordee: item.quantite_demandee, // défaut: tout accordé
+            stock_actuel: item.stock_actuel,
+          })),
+        });
+        console.log('✅ Détails demande récupérés:', {
+          numero: data.demande.numero_demande,
+          items: data.demande.items?.length || 0,
+        });
+        setShowValidationModal(true);
+      } else {
+        throw new Error(data.message || 'Demande non trouvée');
+      }
+    } catch (err) {
+      console.error('❌ Erreur récupération détails:', err);
+      setError(err instanceof Error ? err.message : 'Erreur de connexion');
+    }
   };
-// Base URL déjà définie plus haut :
-// const API = (import.meta.env.VITE_API_BASE_URL ?? '/api').replace(/\/$/, '');
-
-const fetchDemandes = async () => {
-  try {
-    setLoading(true);
-    setError('');
-
-    const token = localStorage.getItem('token');
-    if (!token) {
-      setError('Session expirée. Veuillez vous reconnecter.');
-      return;
-    }
-
-    const res = await fetch(`${API}/api/demandes`, {
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    });
-
-    if (!res.ok) throw new Error(`Erreur HTTP: ${res.status}`);
-
-    const data = await res.json();
-    if (data.success) {
-      setDemandes(data.demandes || []);
-    } else {
-      throw new Error(data.message || 'Erreur lors du chargement des demandes');
-    }
-  } catch (err) {
-    console.error('❌ Erreur lors du chargement des demandes:', err);
-    setError(err instanceof Error ? err.message : 'Erreur de connexion au serveur');
-  } finally {
-    setLoading(false);
-  }
-};
-
-useEffect(() => {
-  fetchDemandes();
-}, []);
-
-
-const fetchDemandeDetails = async (demandeId: string) => {
-  try {
-    setError('');
-
-    const token = localStorage.getItem('token');
-    if (!token) {
-      setError('Session expirée');
-      return;
-    }
-
-    console.log('📋 Récupération détails demande:', demandeId);
-
-    const response = await fetch(`${API}/demandes/${demandeId}`, {
-      headers: authHeaders(),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Erreur HTTP: ${response.status}`);
-    }
-
-    const data = await response.json();
-
-    if (data.success && data.demande) {
-      setSelectedDemande(data.demande);
-      setValidationForm({
-        action: 'approve',
-        commentaire: '',
-        items: (data.demande.items || []).map((item: any) => ({
-          id: item.id,
-          materiau_nom: item.materiau_nom,
-          code_produit: item.code_produit,
-          unite: item.unite,
-          quantite_demandee: item.quantite_demandee,
-          quantite_accordee: item.quantite_demandee,
-          stock_actuel: item.stock_actuel,
-        })),
-      });
-      console.log('✅ Détails demande récupérés:', {
-        numero: data.demande.numero_demande,
-        items: data.demande.items?.length || 0,
-      });
-      setShowValidationModal(true);
-    } else {
-      throw new Error(data.message || 'Demande non trouvée');
-    }
-  } catch (err) {
-    console.error('❌ Erreur récupération détails:', err);
-    setError(err instanceof Error ? err.message : 'Erreur de connexion');
-  }
-};
-
 
   /**
    * Ouvre le PDF du bon de livraison dans un nouvel onglet.
-   * Essaie d'abord /api/bons/:id/pdf puis /api/bon-livraison/:id/pdf (fallback).
    */
   const openBonLivraisonPdf = async (bonId: string) => {
-  const token = localStorage.getItem('token') || '';
-  const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+    const token = localStorage.getItem('token') || '';
+    const headers: HeadersInit = {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      Accept: 'application/pdf',
+    };
 
-  const tryOpen = async (path: string) => {
-    const res = await fetch(`${API}${path}`, { headers, credentials: 'include' });
-    if (!res.ok) return false;
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    window.open(url, '_blank');
-    setTimeout(() => URL.revokeObjectURL(url), 30000);
-    return true;
+    const tryOpen = async (path: string) => {
+      const res = await fetch(`${API}${path}`, { headers, credentials: 'include' });
+      if (!res.ok) return false;
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      setTimeout(() => URL.revokeObjectURL(url), 30000);
+      return true;
+    };
+
+    // Route principale attendue côté backend
+    if (await tryOpen(`/bons-livraison/${bonId}/pdf`)) return;
+
+    // Fallbacks éventuels si tu as d’autres alias côté API
+    if (await tryOpen(`/bons/${bonId}/pdf`)) return;
+    if (await tryOpen(`/bon-livraison/${bonId}/pdf`)) return;
+
+    setError("Impossible d'ouvrir le bon de livraison (PDF introuvable). Vérifiez la route côté API.");
   };
 
-  // Route principale attendue côté backend
-  if (await tryOpen(`/bons-livraison/${bonId}/pdf`)) return;
-
-  // Fallbacks éventuels si tu as d’autres alias côté API
-  if (await tryOpen(`/bons/${bonId}/pdf`)) return;
-  if (await tryOpen(`/bon-livraison/${bonId}/pdf`)) return;
-
-  setError("Impossible d'ouvrir le bon de livraison (PDF introuvable). Vérifiez la route côté API.");
-};
-
   // Générer le bon
-const handleProcessOrder = async (demandeId: string) => {
-  try {
-    setError('');
+  const handleProcessOrder = async (demandeId: string) => {
+    try {
+      setError('');
 
-    const token = localStorage.getItem('token');
-    if (!token) {
-      setError('Session expirée');
-      return;
-    }
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setError('Session expirée');
+        return;
+      }
 
-    console.log('📦 Traitement commande:', demandeId);
+      console.log('📦 Traitement commande:', demandeId);
 
-    const response = await fetch(`${API}/demandes/${demandeId}/process`, {
-      method: 'POST',
-      headers: authHeaders(),
-      body: JSON.stringify({ commentaire: 'Bon de livraison généré automatiquement' }),
-    });
-
-    if (!response.ok) {
-      const txt = await response.text().catch(() => '');
-      throw new Error(`Erreur HTTP: ${response.status} ${txt}`);
-    }
-
-    const data = await response.json();
-
-    if (data.success && data.bon_livraison) {
-      const bonId = data.bon_livraison.id;
-      const numeroBon = data.bon_livraison.numero_bon;
-
-      console.log('✅ Bon généré avec succès:', { id: bonId, numero_bon: numeroBon, response_data: data.bon_livraison });
-      alert(`✅ Bon de livraison ${numeroBon} généré avec succès !`);
-
-      await openBonLivraisonPdf(bonId); // ouvre le PDF
-
-      fetchDemandes();
-    } else {
-      throw new Error(data.message || 'Erreur lors de la génération du bon');
-    }
-  } catch (err) {
-    console.error('❌ Erreur traitement commande:', err);
-    alert(`❌ ${err instanceof Error ? err.message : 'Erreur lors du traitement'}`);
-  }
-};
-
-// Valider
-const handleValidation = async () => {
-  if (!selectedDemande) return;
-
-  try {
-    setSubmitting(true);
-    setError('');
-
-    const token = localStorage.getItem('token');
-    if (!token) {
-      setError('Session expirée');
-      return;
-    }
-
-    console.log('✅ Validation demande:', selectedDemande.numero_demande, 'Action:', validationForm.action);
-
-    const response = await fetch(`${API}/demandes/${selectedDemande.id}/validate`, {
-      method: 'PUT',
-      headers: authHeaders(),
-      body: JSON.stringify({
-        statut: validationForm.action === 'approve' ? 'approuvee' : 'rejetee',
-        commentaire_magazinier: validationForm.commentaire,
-        items_accordes: validationForm.action === 'approve' ? validationForm.items : [],
-      }),
-    });
-
-    if (!response.ok) {
-      const txt = await response.text().catch(() => '');
-      throw new Error(`Erreur HTTP: ${response.status} ${txt}`);
-    }
-
-    const data = await response.json();
-
-    if (data.success) {
-      alert(`✅ ${data.message}`);
-      console.log('✅ Validation réussie:', data.demande?.numero_demande);
-      setShowValidationModal(false);
-      setSelectedDemande(null);
-      fetchDemandes();
-    } else {
-      throw new Error(data.message || 'Erreur lors de la validation');
-    }
-  } catch (err) {
-    console.error('❌ Erreur validation:', err);
-    alert(`❌ ${err instanceof Error ? err.message : 'Erreur lors de la validation'}`);
-  } finally {
-    setSubmitting(false);
-  }
-};
-
-// Supprimer
-const handleDeleteOrder = async () => {
-  if (!selectedDemande) return;
-
-  try {
-    setSubmitting(true);
-    setError('');
-
-    const token = localStorage.getItem('token');
-    if (!token) {
-      setError('Session expirée');
-      return;
-    }
-
-    console.log('🗑️ Suppression demande:', selectedDemande.numero_demande);
-
-    const response = await fetch(`${API}/demandes/${selectedDemande.id}`, {
-      method: 'DELETE',
-      headers: authHeaders(),
-      body: JSON.stringify({
-        motif: deleteForm.motif || 'Suppression par magazinier',
-      }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || 'Erreur lors de la suppression');
-    }
-
-    const data = await response.json();
-
-    if (data.success) {
-      alert(`✅ ${data.message}`);
-      console.log('✅ Suppression réussie:', {
-        numero_demande: selectedDemande.numero_demande,
-        items_sauvegardés: data.items_count,
-        historique: data.history_saved,
+      const response = await fetch(`${API}/demandes/${demandeId}/process`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ commentaire: 'Bon de livraison généré automatiquement' }),
       });
 
-      setShowDeleteModal(false);
-      setSelectedDemande(null);
-      setDeleteForm({ motif: '' });
-      fetchDemandes();
-    } else {
-      throw new Error(data.message || 'Erreur lors de la suppression');
+      if (!response.ok) {
+        const txt = await response.text().catch(() => '');
+        throw new Error(`Erreur HTTP: ${response.status} ${txt}`);
+      }
+
+      const data = await response.json();
+
+      if (data.success && data.bon_livraison) {
+        const bonId = data.bon_livraison.id;
+        const numeroBon = data.bon_livraison.numero_bon;
+
+        console.log('✅ Bon généré avec succès:', { id: bonId, numero_bon: numeroBon, response_data: data.bon_livraison });
+        alert(`✅ Bon de livraison ${numeroBon} généré avec succès !`);
+
+        await openBonLivraisonPdf(bonId);
+        fetchDemandes();
+      } else {
+        throw new Error(data.message || 'Erreur lors de la génération du bon');
+      }
+    } catch (err) {
+      console.error('❌ Erreur traitement commande:', err);
+      alert(`❌ ${err instanceof Error ? err.message : 'Erreur lors du traitement'}`);
     }
-  } catch (err) {
-    console.error('❌ Erreur suppression:', err);
-    alert(`❌ ${err instanceof Error ? err.message : 'Erreur lors de la suppression'}`);
-  } finally {
-    setSubmitting(false);
-  }
-};
+  };
+
+  // Valider
+  const handleValidation = async () => {
+    if (!selectedDemande) return;
+
+    try {
+      setSubmitting(true);
+      setError('');
+
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setError('Session expirée');
+        return;
+      }
+
+      console.log('✅ Validation demande:', selectedDemande.numero_demande, 'Action:', validationForm.action);
+
+      const response = await fetch(`${API}/demandes/${selectedDemande.id}/validate`, {
+        method: 'PUT',
+        headers: authHeaders(),
+        body: JSON.stringify({
+          statut: validationForm.action === 'approve' ? 'approuvee' : 'rejetee',
+          commentaire_magazinier: validationForm.commentaire,
+          items_accordes: validationForm.action === 'approve' ? validationForm.items : [],
+        }),
+      });
+
+      if (!response.ok) {
+        const txt = await response.text().catch(() => '');
+        throw new Error(`Erreur HTTP: ${response.status} ${txt}`);
+      }
+
+      const data = await response.json();
+
+      if (data.success) {
+        alert(`✅ ${data.message}`);
+        console.log('✅ Validation réussie:', data.demande?.numero_demande);
+        setShowValidationModal(false);
+        setSelectedDemande(null);
+        fetchDemandes();
+      } else {
+        throw new Error(data.message || 'Erreur lors de la validation');
+      }
+    } catch (err) {
+      console.error('❌ Erreur validation:', err);
+      alert(`❌ ${err instanceof Error ? err.message : 'Erreur lors de la validation'}`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Supprimer
+  const handleDeleteOrder = async () => {
+    if (!selectedDemande) return;
+
+    try {
+      setSubmitting(true);
+      setError('');
+
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setError('Session expirée');
+        return;
+      }
+
+      console.log('🗑️ Suppression demande:', selectedDemande.numero_demande);
+
+      const response = await fetch(`${API}/demandes/${selectedDemande.id}`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+        body: JSON.stringify({
+          motif: deleteForm.motif || 'Suppression par magazinier',
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Erreur lors de la suppression');
+      }
+
+      const data = await response.json();
+
+      if (data.success) {
+        alert(`✅ ${data.message}`);
+        console.log('✅ Suppression réussie:', {
+          numero_demande: selectedDemande.numero_demande,
+          items_sauvegardés: data.items_count,
+          historique: data.history_saved,
+        });
+
+        setShowDeleteModal(false);
+        setSelectedDemande(null);
+        setDeleteForm({ motif: '' });
+        fetchDemandes();
+      } else {
+        throw new Error(data.message || 'Erreur lors de la suppression');
+      }
+    } catch (err) {
+      console.error('❌ Erreur suppression:', err);
+      alert(`❌ ${err instanceof Error ? err.message : 'Erreur lors de la suppression'}`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   // Filtrer les demandes
   const demandesFiltrees = demandes.filter((demande) => {

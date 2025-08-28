@@ -1,5 +1,9 @@
+// src/contexts/NotificationContext.tsx
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useAuth } from './AuthContext';
+
+// ✅ Base API: /api en dev (proxy Vite), VITE_API_BASE_URL en prod (Vercel)
+const API = (import.meta.env.VITE_API_BASE_URL ?? '/api').replace(/\/$/, '');
 
 export interface Notification {
   id: string;
@@ -45,30 +49,26 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   // Compter les notifications non lues
   const unreadCount = notifications.filter(notif => !notif.is_read).length;
 
-  // Fonction pour jouer le son de notification
+  // Son de notification
   const playNotificationSound = useCallback(() => {
     try {
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-      
       const oscillator = audioContext.createOscillator();
       const gainNode = audioContext.createGain();
-      
+
       oscillator.connect(gainNode);
       gainNode.connect(audioContext.destination);
-      
-      // Son doux et professionnel pour notifications de commandes
+
       oscillator.type = 'sine';
       oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
       oscillator.frequency.exponentialRampToValueAtTime(600, audioContext.currentTime + 0.1);
-      
-      // Volume modéré
+
       gainNode.gain.setValueAtTime(0, audioContext.currentTime);
       gainNode.gain.linearRampToValueAtTime(0.1, audioContext.currentTime + 0.05);
       gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
-      
+
       oscillator.start(audioContext.currentTime);
       oscillator.stop(audioContext.currentTime + 0.3);
-      
     } catch (error) {
       console.log('Son de notification non disponible:', error);
     }
@@ -81,17 +81,19 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      
-      const response = await fetch('http://localhost:5000/api/messages', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
+      if (!token) return;
+
+      const headers: HeadersInit = {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      };
+
+      // ✅ Liste
+      const response = await fetch(`${API}/messages`, { headers });
 
       if (response.ok) {
         const data = await response.json();
-        const apiNotifications = (data.messages || []).map((msg: any) => ({
+        const apiNotifications: Notification[] = (data.messages || []).map((msg: any) => ({
           id: msg.id,
           type: msg.type,
           title: msg.title,
@@ -104,16 +106,14 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           is_read: msg.is_read,
           created_at: msg.created_at,
         }));
-        
-        // Vérifier s'il y a de nouvelles notifications non lues
-        const previousUnreadCount = notifications.filter(notif => !notif.is_read).length;
-        const newUnreadCount = apiNotifications.filter(notif => !notif.is_read).length;
-        
-        // Jouer le son seulement s'il y a de nouvelles notifications
+
+        // Détecter nouvelles non lues pour jouer un son
+        const previousUnreadCount = notifications.filter(n => !n.is_read).length;
+        const newUnreadCount = apiNotifications.filter(n => !n.is_read).length;
         if (newUnreadCount > previousUnreadCount && notifications.length > 0) {
           playNotificationSound();
         }
-        
+
         setNotifications(apiNotifications);
       }
     } catch (error) {
@@ -121,9 +121,9 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     } finally {
       setLoading(false);
     }
-  }, [user, notifications.length, playNotificationSound]);
+  }, [user, notifications, playNotificationSound]);
 
-  // Ajouter une notification locale (pour simulation)
+  // Ajouter une notification locale (simulation)
   const addNotification = useCallback((notification: Partial<Notification>) => {
     const newNotification: Notification = {
       id: Date.now().toString(),
@@ -147,24 +147,22 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const markAsRead = useCallback(async (notificationId: string) => {
     try {
       const token = localStorage.getItem('token');
-      
-      const response = await fetch(`http://localhost:5000/api/messages/${notificationId}/read`, {
+      if (!token) return;
+
+      const headers: HeadersInit = {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      };
+
+      // ✅ Marquer lue
+      await fetch(`${API}/messages/${notificationId}/read`, {
         method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
+        headers,
       });
 
-      if (response.ok) {
-        setNotifications(prev => 
-          prev.map(notif => 
-            notif.id === notificationId 
-              ? { ...notif, is_read: true }
-              : notif
-          )
-        );
-      }
+      setNotifications(prev =>
+        prev.map(notif => (notif.id === notificationId ? { ...notif, is_read: true } : notif))
+      );
     } catch (error) {
       console.error('Erreur lors du marquage comme lu:', error);
     }
@@ -174,43 +172,39 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const markAllAsRead = useCallback(async () => {
     try {
       const token = localStorage.getItem('token');
-      
-      const response = await fetch('http://localhost:5000/api/messages/mark-all-read', {
+      if (!token) return;
+
+      const headers: HeadersInit = {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      };
+
+      // ✅ Tout marquer lu
+      await fetch(`${API}/messages/mark-all-read`, {
         method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
+        headers,
       });
 
-      if (response.ok) {
-        setNotifications(prev => 
-          prev.map(notif => ({ ...notif, is_read: true }))
-        );
-      }
+      setNotifications(prev => prev.map(notif => ({ ...notif, is_read: true })));
     } catch (error) {
       console.error('Erreur lors du marquage global:', error);
     }
   }, []);
 
-  // Effacer toutes les notifications
+  // Effacer toutes les notifications (local)
   const clearNotifications = useCallback(() => {
     setNotifications([]);
   }, []);
 
-  // Récupérer les notifications au chargement et périodiquement
+  // Chargement initial + polling
   useEffect(() => {
-    if (user) {
-      fetchNotifications();
-      
-      // Polling toutes les 5 secondes pour les nouvelles notifications
-      const interval = setInterval(fetchNotifications, 5000);
-      
-      return () => clearInterval(interval);
-    }
+    if (!user) return;
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 5000);
+    return () => clearInterval(interval);
   }, [user, fetchNotifications]);
 
-  const value = {
+  const value: NotificationContextType = {
     notifications,
     unreadCount,
     loading,

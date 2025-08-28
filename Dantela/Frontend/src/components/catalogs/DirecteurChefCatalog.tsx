@@ -1,3 +1,4 @@
+// src/components/catalogs/DirecteurChefCatalog.tsx
 import React, { useState, useEffect } from 'react';
 import { 
   Package, 
@@ -22,6 +23,9 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
+
+// ✅ Base API: /api en dev via proxy Vite, VITE_API_BASE_URL en prod (Vercel)
+const API = (import.meta.env.VITE_API_BASE_URL ?? '/api').replace(/\/$/, '');
 
 interface Materiau {
   id: string;
@@ -58,6 +62,7 @@ interface CartItem {
 const DirecteurChefCatalog: React.FC = () => {
   const { user } = useAuth();
   const { language } = useLanguage();
+  const currentLang = language ?? 'fr';
   const [, forceUpdate] = useState({});
   
   // États principaux
@@ -88,12 +93,11 @@ const DirecteurChefCatalog: React.FC = () => {
   });
   const [submittingOrder, setSubmittingOrder] = useState(false);
 
-  // Écouter les changements de langue
+  // Écouter les changements de langue (force re-render)
   useEffect(() => {
     const handleLanguageChange = () => {
       forceUpdate({});
     };
-    
     window.addEventListener('languageChanged', handleLanguageChange);
     return () => window.removeEventListener('languageChanged', handleLanguageChange);
   }, []);
@@ -103,6 +107,8 @@ const DirecteurChefCatalog: React.FC = () => {
   }, []);
 
   const fetchData = async () => {
+    setLoading(true);
+    setError('');
     try {
       const token = localStorage.getItem('token');
       if (!token) {
@@ -110,36 +116,33 @@ const DirecteurChefCatalog: React.FC = () => {
         return;
       }
 
-      const headers = {
+      const headers: HeadersInit = {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
       };
 
-      // Récupérer les matériaux
-      const materiauxResponse = await fetch('http://localhost:5000/api/materiaux', { headers });
-      if (materiauxResponse.ok) {
-        const materiauxData = await materiauxResponse.json();
-        setMateriaux(materiauxData.materiaux || []);
-      }
+      // ✅ Récupérer les matériaux
+      const materiauxResponse = await fetch(`${API}/materiaux`, { headers });
+      if (!materiauxResponse.ok) throw new Error('Impossible de charger les matériaux');
+      const materiauxData = await materiauxResponse.json();
+      setMateriaux(materiauxData.materiaux ?? []);
 
-      // Récupérer les catégories
-      const categoriesResponse = await fetch('http://localhost:5000/api/categories', { headers });
-      if (categoriesResponse.ok) {
-        const categoriesData = await categoriesResponse.json();
-        setCategories(categoriesData.categories || []);
-      }
+      // ✅ Récupérer les catégories
+      const categoriesResponse = await fetch(`${API}/categories`, { headers });
+      if (!categoriesResponse.ok) throw new Error('Impossible de charger les catégories');
+      const categoriesData = await categoriesResponse.json();
+      setCategories(categoriesData.categories ?? []);
 
-      // Récupérer les dépôts seulement pour le directeur
+      // ✅ Récupérer les dépôts seulement pour le directeur
       if (user?.role === 'directeur') {
-        const depotsResponse = await fetch('http://localhost:5000/api/admin/depots', { headers });
-        if (depotsResponse.ok) {
-          const depotsData = await depotsResponse.json();
-          setDepots(depotsData.depots || []);
-        }
+        const depotsResponse = await fetch(`${API}/admin/depots`, { headers });
+        if (!depotsResponse.ok) throw new Error('Impossible de charger les dépôts');
+        const depotsData = await depotsResponse.json();
+        setDepots(depotsData.depots ?? []);
       }
 
-    } catch (error) {
-      console.error('Erreur lors du chargement:', error);
+    } catch (err) {
+      console.error('Erreur lors du chargement:', err);
       setError('Erreur de connexion');
     } finally {
       setLoading(false);
@@ -147,13 +150,14 @@ const DirecteurChefCatalog: React.FC = () => {
   };
 
   // Filtrer les matériaux
-  const materiauxFiltres = materiaux.filter(materiau => {
-    const matchSearch = materiau.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                       materiau.code_produit.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                       materiau.description.toLowerCase().includes(searchTerm.toLowerCase());
-    
+  const materiauxFiltres = materiaux.filter((materiau) => {
+    const s = searchTerm.toLowerCase();
+    const matchSearch =
+      materiau.nom.toLowerCase().includes(s) ||
+      materiau.code_produit.toLowerCase().includes(s) ||
+      (materiau.description ?? '').toLowerCase().includes(s);
+
     const matchCategory = selectedCategory === 'all' || materiau.categorie_nom === selectedCategory;
-    
     return matchSearch && matchCategory;
   });
 
@@ -167,9 +171,8 @@ const DirecteurChefCatalog: React.FC = () => {
             ? { ...item, quantite: item.quantite + 1 }
             : item
         );
-      } else {
-        return [...prevCart, { materiau, quantite: 1 }];
       }
+      return [...prevCart, { materiau, quantite: 1 }];
     });
   };
 
@@ -191,62 +194,65 @@ const DirecteurChefCatalog: React.FC = () => {
     setCart(prevCart => prevCart.filter(item => item.materiau.id !== materiauId));
   };
 
-  const clearCart = () => {
-    setCart([]);
-  };
+  const clearCart = () => setCart([]);
 
-  const getTotalItems = () => {
-    return cart.reduce((total, item) => total + item.quantite, 0);
-  };
-
-  const getUniqueItems = () => {
-    return cart.length;
-  };
+  const getTotalItems = () => cart.reduce((total, item) => total + item.quantite, 0);
+  const getUniqueItems = () => cart.length;
 
   // Soumission de commande
   const handleSubmitOrder = async () => {
     try {
       // Validation du panier
       if (cart.length === 0) {
-        alert(language === 'fr' ? 'Votre panier est vide' : 
-              language === 'en' ? 'Your cart is empty' : 
-              'Sepetiniz boş');
+        alert(
+          currentLang === 'fr' ? 'Votre panier est vide' :
+          currentLang === 'en' ? 'Your cart is empty' :
+          'Sepetiniz boş'
+        );
         return;
       }
 
       // Validation du formulaire
       if (orderForm.destinationType === 'depot' && !orderForm.depot_id && user?.role === 'directeur') {
-        alert(language === 'fr' ? 'Veuillez sélectionner un dépôt' : 
-              language === 'en' ? 'Please select a depot' : 
-              'Lütfen bir depo seçin');
+        alert(
+          currentLang === 'fr' ? 'Veuillez sélectionner un dépôt' :
+          currentLang === 'en' ? 'Please select a depot' :
+          'Lütfen bir depo seçin'
+        );
         return;
       }
 
       if (orderForm.destinationType === 'custom' && !orderForm.destination_name.trim()) {
-        alert(language === 'fr' ? 'Veuillez saisir une destination' : 
-              language === 'en' ? 'Please enter a destination' : 
-              'Lütfen bir hedef girin');
+        alert(
+          currentLang === 'fr' ? 'Veuillez saisir une destination' :
+          currentLang === 'en' ? 'Please enter a destination' :
+          'Lütfen bir hedef girin'
+        );
         return;
       }
 
       if (!orderForm.date_livraison_souhaitee) {
-        alert(language === 'fr' ? 'Veuillez sélectionner une date de livraison' : 
-              language === 'en' ? 'Please select a delivery date' : 
-              'Lütfen teslimat tarihi seçin');
+        alert(
+          currentLang === 'fr' ? 'Veuillez sélectionner une date de livraison' :
+          currentLang === 'en' ? 'Please select a delivery date' :
+          'Lütfen teslimat tarihi seçin'
+        );
         return;
       }
 
       setSubmittingOrder(true);
 
       const token = localStorage.getItem('token');
-      if (!token) {
-        throw new Error('Session expirée');
-      }
+      if (!token) throw new Error('Session expirée');
 
       // Préparer les données de commande
       const commandeData = {
-        depot_id: orderForm.destinationType === 'depot' && user?.role === 'directeur' ? orderForm.depot_id : null,
-        destination_custom: orderForm.destinationType === 'custom' ? orderForm.destination_name : null,
+        depot_id:
+          orderForm.destinationType === 'depot' && user?.role === 'directeur'
+            ? orderForm.depot_id
+            : null,
+        destination_custom:
+          orderForm.destinationType === 'custom' ? orderForm.destination_name : null,
         priorite: orderForm.priorite,
         date_livraison_souhaitee: orderForm.date_livraison_souhaitee,
         commentaire_demandeur: orderForm.commentaire_demandeur,
@@ -257,7 +263,8 @@ const DirecteurChefCatalog: React.FC = () => {
         }))
       };
 
-      const response = await fetch('http://localhost:5000/api/demandes', {
+      // ✅ Création d’une demande (utilise API dynamique)
+      const response = await fetch(`${API}/demandes`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -267,25 +274,29 @@ const DirecteurChefCatalog: React.FC = () => {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.message || 'Erreur lors de la création de la commande');
       }
 
       const data = await response.json();
       
       // Succès
-      alert(language === 'fr' ? `Commande ${data.demande.numero_demande} créée avec succès !` : 
-            language === 'en' ? `Order ${data.demande.numero_demande} created successfully!` : 
-            `Sipariş ${data.demande.numero_demande} başarıyla oluşturuldu!`);
+      alert(
+        currentLang === 'fr'
+          ? `Commande ${data.demande?.numero_demande ?? ''} créée avec succès !`
+          : currentLang === 'en'
+          ? `Order ${data.demande?.numero_demande ?? ''} created successfully!`
+          : `Sipariş ${data.demande?.numero_demande ?? ''} başarıyla oluşturuldu!`
+      );
       
       // Reset
       clearCart();
       setShowOrderModal(false);
       resetOrderForm();
 
-    } catch (error) {
-      console.error('Erreur lors de la commande:', error);
-      alert(error instanceof Error ? error.message : 'Erreur lors de la création de la commande');
+    } catch (err) {
+      console.error('Erreur lors de la commande:', err);
+      alert(err instanceof Error ? err.message : 'Erreur lors de la création de la commande');
     } finally {
       setSubmittingOrder(false);
     }
@@ -309,9 +320,11 @@ const DirecteurChefCatalog: React.FC = () => {
   };
 
   const getStockText = (stock: number, minimum: number) => {
-    if (stock <= minimum) return language === 'fr' ? 'Stock critique' : language === 'en' ? 'Critical stock' : 'Kritik stok';
-    if (stock <= minimum * 1.5) return language === 'fr' ? 'Stock faible' : language === 'en' ? 'Low stock' : 'Düşük stok';
-    return language === 'fr' ? 'En stock' : language === 'en' ? 'In stock' : 'Stokta';
+    if (stock <= minimum)
+      return currentLang === 'fr' ? 'Stock critique' : currentLang === 'en' ? 'Critical stock' : 'Kritik stok';
+    if (stock <= minimum * 1.5)
+      return currentLang === 'fr' ? 'Stock faible' : currentLang === 'en' ? 'Low stock' : 'Düşük stok';
+    return currentLang === 'fr' ? 'En stock' : currentLang === 'en' ? 'In stock' : 'Stokta';
   };
 
   // Date minimum (aujourd'hui)

@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  BarChart3, 
-  TrendingUp, 
-  Download, 
-  Calendar, 
+import {
+  BarChart3,
+  TrendingUp,
+  Download,
+  Calendar,
   Filter,
   FileText,
   Users,
@@ -27,14 +27,14 @@ import {
   Minus,
   X
 } from 'lucide-react';
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  Legend, 
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
   ResponsiveContainer,
   PieChart,
   Pie,
@@ -47,6 +47,9 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import Layout from '../components/Layout';
+
+// Dev (Vite): '/api' via proxy → http://localhost:5000
+// Prod (Vercel): '/api' réécrit vers https://dantela.onrender.com/api via vercel.json
 const API = (import.meta.env.VITE_API_BASE_URL ?? '/api').replace(/\/$/, '');
 
 interface ReportData {
@@ -62,17 +65,17 @@ const ReportsPage: React.FC = () => {
   const { user } = useAuth();
   const { language } = useLanguage();
   const [, forceUpdate] = useState({});
-  
+
   const [reportData, setReportData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  
+
   // Filtres
-  const [selectedPeriod, setSelectedPeriod] = useState('month');
-  const [selectedReport, setSelectedReport] = useState('overview');
+  const [selectedPeriod, setSelectedPeriod] = useState<'week' | 'month' | 'quarter' | 'year' | 'custom'>('month');
+  const [selectedReport, setSelectedReport] = useState<'overview' | 'users' | 'inventory' | 'orders' | 'performance'>('overview');
   const [dateRange, setDateRange] = useState({
     start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    end: new Date().toISOString().split('T')[0]
+    end: new Date().toISOString().split('T')[0],
   });
 
   // Modals
@@ -80,63 +83,61 @@ const ReportsPage: React.FC = () => {
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedMetric, setSelectedMetric] = useState<any>(null);
 
-  // Écouter les changements de langue
+  // Re-render sur changement de langue (si tu utilises un event global)
   useEffect(() => {
-    const handleLanguageChange = () => {
-      forceUpdate({});
-    };
-    
+    const handleLanguageChange = () => forceUpdate({});
     window.addEventListener('languageChanged', handleLanguageChange);
     return () => window.removeEventListener('languageChanged', handleLanguageChange);
   }, []);
 
+  // Chargement des données (dépend de la période et du range)
   useEffect(() => {
     fetchReportData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPeriod, dateRange]);
 
   const fetchReportData = async () => {
     try {
       setLoading(true);
       setError('');
-      
+
       const token = localStorage.getItem('token');
       if (!token) {
         setError('Session expirée');
+        setLoading(false); // éviter spinner infini si on return tôt
         return;
       }
 
-      const headers = {
-        'Authorization': `Bearer ${token}`,
+      const headers: HeadersInit = {
+        Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       };
-// En dev (Vite) -> /api via proxy
-// En prod (Vercel) -> VITE_API_BASE_URL = https://dantela.onrender.com/api
 
+      // Construire les query params
+      const params = new URLSearchParams({
+        period: selectedPeriod,
+        start: dateRange.start,
+        end: dateRange.end,
+      });
 
-      // Récupérer les données réelles depuis l'API
-      //const response = await fetch('http://localhost:5000/api/reports/overview', { headers });
-      // --- avant ---
-// const response = await fetch('http://localhost:5000/api/reports/overview', { headers });
-
-// --- après ---
-const response = await fetch(`${API}/reports/overview`, { headers });
+      // ✅ Corrigé: pas de /api en double
+      const response = await fetch(`${API}/reports/overview?${params.toString()}`, { headers });
 
       if (!response.ok) {
         throw new Error('Erreur lors de la récupération des données');
       }
 
       const data = await response.json();
-      
       if (data.success) {
         setReportData(data.data);
       } else {
         throw new Error(data.message || 'Erreur lors de la récupération des données');
       }
-      
-    } catch (error) {
-      console.error('Erreur lors du chargement des rapports:', error);
-      setError(error instanceof Error ? error.message : 'Erreur de connexion');
-      // Définir des données par défaut en cas d'erreur
+    } catch (err) {
+      console.error('Erreur lors du chargement des rapports:', err);
+      setError(err instanceof Error ? err.message : 'Erreur de connexion');
+
+      // Données neutres par défaut pour garder l’écran utilisable
       setReportData({
         users: { active: 0, total: 0, by_role: { directeur: 0, magazinier: 0, chef_chantier: 0 }, growth: { percentage: 0, this_month: 0 } },
         depots: { active: 0, total: 0, with_manager: 0, efficiency: 0, top_performing: [] },
@@ -144,7 +145,7 @@ const response = await fetch(`${API}/reports/overview`, { headers });
         demandes: { total: 0, approved: 0, rejected: 0, pending: 0, approval_rate: 0, by_priority: { urgente: 0, haute: 0, normale: 0, basse: 0 }, monthly_trend: [] },
         mouvements: { total: 0, entrees: 0, sorties: 0, daily_activity: [] },
         bons: { total: 0, delivered: 0 },
-        performance: { system_uptime: 0, avg_response_time: 0, error_rate: 0, user_satisfaction: 0, efficiency_score: 0 }
+        performance: { system_uptime: 0, avg_response_time: 0, error_rate: 0, user_satisfaction: 0, efficiency_score: 0 },
       });
     } finally {
       setLoading(false);
@@ -159,92 +160,63 @@ const response = await fetch(`${API}/reports/overview`, { headers });
       }
 
       const response = await fetch(`${API}/reports/export`, {
-  method: 'POST',
-  headers: {
-    'Authorization': `Bearer ${token}`,
-    'Content-Type': 'application/json',
-  },
-  body: JSON.stringify({
-    report_type: selectedReport,
-    format,
-    date_debut: dateRange.start,
-    date_fin: dateRange.end,
-  }),
-});
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          report_type: selectedReport,
+          format,
+          date_debut: dateRange.start,
+          date_fin: dateRange.end,
+        }),
+      });
 
       if (!response.ok) {
-        throw new Error('Erreur lors de l\'export');
+        throw new Error("Erreur lors de l'export");
       }
 
       const data = await response.json();
-      
       if (data.success) {
-        alert(language === 'fr' ? `Rapport exporté : ${data.export.filename}` : 
-              language === 'en' ? `Report exported: ${data.export.filename}` : 
-              `Rapor dışa aktarıldı: ${data.export.filename}`);
+        alert(
+          language === 'fr'
+            ? `Rapport exporté : ${data.export.filename}`
+            : language === 'en'
+            ? `Report exported: ${data.export.filename}`
+            : `Rapor dışa aktarıldı: ${data.export.filename}`
+        );
       } else {
-        throw new Error(data.message);
+        throw new Error(data.message || "Erreur lors de l'export");
       }
-      
+
       setShowExportModal(false);
-    } catch (error) {
-      console.error('Erreur export:', error);
-      alert(error instanceof Error ? error.message : 'Erreur lors de l\'export');
+    } catch (err) {
+      console.error('Erreur export:', err);
+      alert(err instanceof Error ? err.message : "Erreur lors de l'export");
     }
   };
 
   const reportTypes = [
-    {
-      key: 'overview',
-      title: language === 'fr' ? 'Vue d\'ensemble' : language === 'en' ? 'Overview' : 'Genel Bakış',
-      icon: BarChart3,
-      color: 'from-blue-500 to-blue-600'
-    },
-    {
-      key: 'users',
-      title: language === 'fr' ? 'Utilisateurs' : language === 'en' ? 'Users' : 'Kullanıcılar',
-      icon: Users,
-      color: 'from-green-500 to-green-600'
-    },
-    {
-      key: 'inventory',
-      title: language === 'fr' ? 'Inventaire' : language === 'en' ? 'Inventory' : 'Envanter',
-      icon: Package,
-      color: 'from-purple-500 to-purple-600'
-    },
-    {
-      key: 'orders',
-      title: language === 'fr' ? 'Commandes' : language === 'en' ? 'Orders' : 'Siparişler',
-      icon: FileText,
-      color: 'from-orange-500 to-orange-600'
-    },
-    {
-      key: 'performance',
-      title: language === 'fr' ? 'Performance' : language === 'en' ? 'Performance' : 'Performans',
-      icon: TrendingUp,
-      color: 'from-red-500 to-red-600'
-    }
-  ];
+    { key: 'overview', title: language === 'fr' ? "Vue d'ensemble" : language === 'en' ? 'Overview' : 'Genel Bakış', icon: BarChart3, color: 'from-blue-500 to-blue-600' },
+    { key: 'users', title: language === 'fr' ? 'Utilisateurs' : language === 'en' ? 'Users' : 'Kullanıcılar', icon: Users, color: 'from-green-500 to-green-600' },
+    { key: 'inventory', title: language === 'fr' ? 'Inventaire' : language === 'en' ? 'Inventory' : 'Envanter', icon: Package, color: 'from-purple-500 to-purple-600' },
+    { key: 'orders', title: language === 'fr' ? 'Commandes' : language === 'en' ? 'Orders' : 'Siparişler', icon: FileText, color: 'from-orange-500 to-orange-600' },
+    { key: 'performance', title: language === 'fr' ? 'Performance' : language === 'en' ? 'Performance' : 'Performans', icon: TrendingUp, color: 'from-red-500 to-red-600' },
+  ] as const;
 
   const periods = [
     { key: 'week', label: language === 'fr' ? 'Cette semaine' : language === 'en' ? 'This week' : 'Bu hafta' },
     { key: 'month', label: language === 'fr' ? 'Ce mois' : language === 'en' ? 'This month' : 'Bu ay' },
     { key: 'quarter', label: language === 'fr' ? 'Ce trimestre' : language === 'en' ? 'This quarter' : 'Bu çeyrek' },
     { key: 'year', label: language === 'fr' ? 'Cette année' : language === 'en' ? 'This year' : 'Bu yıl' },
-    { key: 'custom', label: language === 'fr' ? 'Personnalisé' : language === 'en' ? 'Custom' : 'Özel' }
-  ];
+    { key: 'custom', label: language === 'fr' ? 'Personnalisé' : language === 'en' ? 'Custom' : 'Özel' },
+  ] as const;
 
-  const formatNumber = (num: number) => {
-    return new Intl.NumberFormat('fr-FR').format(num);
-  };
+  const formatNumber = (num: number) => new Intl.NumberFormat('fr-FR').format(num);
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'XAF',
-      minimumFractionDigits: 0
-    }).format(amount);
-  };
+  const formatCurrency = (amount: number) =>
+    new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XAF', minimumFractionDigits: 0 }).format(amount);
 
   const getChangeIcon = (change: number) => {
     if (change > 0) return <ArrowUp className="w-4 h-4 text-green-500" />;
@@ -252,11 +224,7 @@ const response = await fetch(`${API}/reports/overview`, { headers });
     return <Minus className="w-4 h-4 text-gray-500" />;
   };
 
-  const getChangeColor = (change: number) => {
-    if (change > 0) return 'text-green-600';
-    if (change < 0) return 'text-red-600';
-    return 'text-gray-600';
-  };
+  const getChangeColor = (change: number) => (change > 0 ? 'text-green-600' : change < 0 ? 'text-red-600' : 'text-gray-600');
 
   if (loading) {
     return (
@@ -279,6 +247,11 @@ const response = await fetch(`${API}/reports/overview`, { headers });
       </Layout>
     );
   }
+
+ 
+
+//export default ReportsPage;
+
 
   return (
     <Layout>

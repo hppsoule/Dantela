@@ -1,3 +1,4 @@
+// src/components/catalogs/MagazinierCatalog.tsx
 import React, { useState, useEffect } from 'react';
 import { 
   Search, 
@@ -16,6 +17,9 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
+
+// ✅ Base API: /api (proxy Vite en dev) ou VITE_API_BASE_URL en prod
+const API = (import.meta.env.VITE_API_BASE_URL ?? '/api').replace(/\/$/, '');
 
 interface Materiau {
   id: string;
@@ -41,11 +45,13 @@ interface Categorie {
 const MagazinierCatalog: React.FC = () => {
   const { user } = useAuth();
   const { language } = useLanguage();
+  const currentLang = language ?? 'fr';
   
   // États principaux
   const [materiaux, setMateriaux] = useState<Materiau[]>([]);
   const [categories, setCategories] = useState<Categorie[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string>('');
   
   // Filtres
   const [searchTerm, setSearchTerm] = useState('');
@@ -97,30 +103,35 @@ const MagazinierCatalog: React.FC = () => {
   }, []);
 
   const fetchData = async () => {
+    setLoading(true);
+    setError('');
     try {
       const token = localStorage.getItem('token');
-      const headers = {
+      if (!token) {
+        setError('Session expirée');
+        return;
+      }
+      const headers: HeadersInit = {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
       };
 
-      const [materiauxResponse, categoriesResponse] = await Promise.all([
-        fetch('http://localhost:5000/api/materiaux', { headers }),
-        fetch('http://localhost:5000/api/materiaux/categories', { headers })
+      const [matsRes, catsRes] = await Promise.all([
+        fetch(`${API}/materiaux`, { headers }),
+        fetch(`${API}/materiaux/categories`, { headers }),
       ]);
 
-      if (materiauxResponse.ok) {
-        const materiauxData = await materiauxResponse.json();
-        setMateriaux(materiauxData.materiaux || []);
-      }
+      if (!matsRes.ok) throw new Error('Impossible de charger les matériaux');
+      if (!catsRes.ok) throw new Error('Impossible de charger les catégories');
 
-      if (categoriesResponse.ok) {
-        const categoriesData = await categoriesResponse.json();
-        setCategories(categoriesData.categories || []);
-      }
+      const matsData = await matsRes.json();
+      const catsData = await catsRes.json();
 
-    } catch (error) {
-      console.error('Erreur lors du chargement:', error);
+      setMateriaux(matsData.materiaux ?? []);
+      setCategories(catsData.categories ?? []);
+    } catch (err) {
+      console.error('Erreur lors du chargement:', err);
+      setError('Erreur de connexion');
     } finally {
       setLoading(false);
     }
@@ -129,46 +140,53 @@ const MagazinierCatalog: React.FC = () => {
   // Fonction pour créer une nouvelle catégorie
   const handleCreateCategory = async () => {
     if (!newCategoryData.nom.trim()) {
-      alert('Le nom de la catégorie est obligatoire');
+      alert(
+        currentLang === 'fr' ? 'Le nom de la catégorie est obligatoire' :
+        currentLang === 'en' ? 'Category name is required' :
+        'Kategori adı zorunludur'
+      );
       return;
     }
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/categories', {
+      if (!token) throw new Error('Session expirée');
+
+      const response = await fetch(`${API}/categories`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(newCategoryData),
+        body: JSON.stringify({ nom: newCategoryData.nom, description: newCategoryData.description }),
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        
-        // Recharger les catégories
-        await fetchData();
-        
-        // Sélectionner automatiquement la nouvelle catégorie
-        setFormData({ ...formData, categorie_id: data.categorie.id });
-        
-        // Réinitialiser le formulaire de nouvelle catégorie
-        setNewCategoryData({ nom: '', description: '' });
-        setShowNewCategoryForm(false);
-        
-        alert('Catégorie créée avec succès !');
-      } else {
-        const errorData = await response.json();
-        alert(errorData.message);
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.message || 'Erreur lors de la création de la catégorie');
       }
-    } catch (error) {
-      console.error('Erreur:', error);
-      alert('Erreur lors de la création de la catégorie');
+
+      const data = await response.json();
+      // Recharger les catégories
+      await fetchData();
+      // Sélectionner automatiquement la nouvelle catégorie
+      setFormData((prev) => ({ ...prev, categorie_id: data.categorie?.id ?? '' }));
+      // Reset
+      setNewCategoryData({ nom: '', description: '' });
+      setShowNewCategoryForm(false);
+      
+      alert(
+        currentLang === 'fr' ? 'Catégorie créée avec succès !' :
+        currentLang === 'en' ? 'Category created successfully!' :
+        'Kategori başarıyla oluşturuldu!'
+      );
+    } catch (err) {
+      console.error('Erreur:', err);
+      alert(err instanceof Error ? err.message : 'Erreur lors de la création de la catégorie');
     }
   };
 
-  // Fonction pour ouvrir le modal d'édition
+  // Ouvrir le modal d'édition
   const openEditModal = (materiau: Materiau) => {
     setSelectedMateriau(materiau);
     setFormData({
@@ -182,22 +200,19 @@ const MagazinierCatalog: React.FC = () => {
       categorie_id: materiau.categorie_id,
       image: null
     });
-    
-    // Charger l'image existante dans l'aperçu
-    if (materiau.image_url) {
-      setImagePreview(materiau.image_url);
-    }
-    
+    setImagePreview(materiau.image_url ?? null);
     setShowEditModal(true);
   };
 
-  // Fonction pour supprimer un produit
+  // Supprimer un produit
   const handleDeleteProduct = async () => {
     if (!selectedMateriau) return;
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/materiaux/${selectedMateriau.id}`, {
+      if (!token) throw new Error('Session expirée');
+
+      const response = await fetch(`${API}/materiaux/${selectedMateriau.id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -205,75 +220,83 @@ const MagazinierCatalog: React.FC = () => {
         },
       });
 
-      if (response.ok) {
-        alert('Produit supprimé avec succès !');
-        setShowDeleteModal(false);
-        setSelectedMateriau(null);
-        fetchData(); // Recharger les données
-      } else {
-        const errorData = await response.json();
-        alert(errorData.message);
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.message || 'Erreur lors de la suppression');
       }
-    } catch (error) {
-      console.error('Erreur:', error);
-      alert('Erreur lors de la suppression');
+
+      alert(
+        currentLang === 'fr' ? 'Produit supprimé avec succès !' :
+        currentLang === 'en' ? 'Product deleted successfully!' :
+        'Ürün başarıyla silindi!'
+      );
+      setShowDeleteModal(false);
+      setSelectedMateriau(null);
+      fetchData();
+    } catch (err) {
+      console.error('Erreur:', err);
+      alert(err instanceof Error ? err.message : 'Erreur lors de la suppression');
     }
   };
 
-  // Fonction pour soumettre le formulaire
+  // Soumettre (création / mise à jour) matériau
   const handleSubmit = async () => {
-    // Validation
+    // Validation minimale
     if (!formData.code_produit || !formData.nom || !formData.unite || !formData.categorie_id) {
-      alert('Veuillez remplir tous les champs obligatoires');
+      alert(
+        currentLang === 'fr' ? 'Veuillez remplir tous les champs obligatoires' :
+        currentLang === 'en' ? 'Please fill in all required fields' :
+        'Lütfen gerekli tüm alanları doldurun'
+      );
       return;
     }
 
     try {
       const token = localStorage.getItem('token');
+      if (!token) throw new Error('Session expirée');
+
       const formDataToSend = new FormData();
-      
-      // Ajouter tous les champs
+      // Ajouter tous les champs (sauf image, gérée à part)
       Object.entries(formData).forEach(([key, value]) => {
-        if (key !== 'image' && value !== null) {
-          formDataToSend.append(key, value.toString());
+        if (key !== 'image' && value !== null && value !== undefined) {
+          formDataToSend.append(key, String(value));
         }
       });
-      
-      // Ajouter l'image si présente
       if (formData.image) {
         formDataToSend.append('image', formData.image);
       }
 
-      const url = showEditModal 
-        ? `http://localhost:5000/api/materiaux/${selectedMateriau?.id}`
-        : 'http://localhost:5000/api/materiaux';
-      
+      const url = showEditModal
+        ? `${API}/materiaux/${selectedMateriau?.id}`
+        : `${API}/materiaux`;
       const method = showEditModal ? 'PUT' : 'POST';
 
       const response = await fetch(url, {
         method,
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+        headers: { 'Authorization': `Bearer ${token}` }, // ⚠️ pas de Content-Type ici: laissé à FormData
         body: formDataToSend,
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        alert(data.message);
-        
-        // Fermer le modal et réinitialiser
-        setShowAddModal(false);
-        setShowEditModal(false);
-        resetForm();
-        fetchData(); // Recharger les données
-      } else {
-        const errorData = await response.json();
-        alert(errorData.message);
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.message || 'Erreur lors de l’enregistrement');
       }
-    } catch (error) {
-      console.error('Erreur:', error);
-      alert('Erreur lors de l\'enregistrement');
+
+      const data = await response.json();
+      alert(
+        data.message ||
+        (currentLang === 'fr' ? 'Enregistrement réussi' :
+         currentLang === 'en' ? 'Saved successfully' : 'Başarıyla kaydedildi')
+      );
+
+      // Reset UI
+      setShowAddModal(false);
+      setShowEditModal(false);
+      resetForm();
+      fetchData();
+    } catch (err) {
+      console.error('Erreur:', err);
+      alert(err instanceof Error ? err.message : 'Erreur lors de l’enregistrement');
     }
   };
 
@@ -296,30 +319,25 @@ const MagazinierCatalog: React.FC = () => {
     setNewCategoryData({ nom: '', description: '' });
   };
 
-  // Gestion de l'upload d'image
+  // Upload d'image (aperçu)
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      setFormData({ ...formData, image: file });
-      
-      // Créer un aperçu
+      setFormData((prev) => ({ ...prev, image: file }));
       const reader = new FileReader();
-      reader.onload = (e) => {
-        setImagePreview(e.target?.result as string);
-      };
+      reader.onload = (ev) => setImagePreview(ev.target?.result as string);
       reader.readAsDataURL(file);
     }
   };
 
   // Filtrer les matériaux
   const materiauxFiltres = materiaux.filter(materiau => {
-    const matchSearch = materiau.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                       materiau.code_produit.toLowerCase().includes(searchTerm.toLowerCase());
-    
+    const s = searchTerm.toLowerCase();
+    const matchSearch =
+      materiau.nom.toLowerCase().includes(s) ||
+      materiau.code_produit.toLowerCase().includes(s);
     const matchCategory = selectedCategory === 'all' || materiau.categorie_id === selectedCategory;
-    
     const matchLowStock = !showLowStockOnly || materiau.stock_actuel <= materiau.stock_minimum;
-    
     return matchSearch && matchCategory && matchLowStock;
   });
 
@@ -327,25 +345,27 @@ const MagazinierCatalog: React.FC = () => {
   const exportToExcel = async () => {
     try {
       const XLSX = await import('xlsx');
-      
-      const dataToExport = materiauxFiltres.map(materiau => ({
-        'Code Produit': materiau.code_produit,
-        'Nom': materiau.nom,
-        'Description': materiau.description,
-        'Unité': materiau.unite,
-        'Stock Actuel': materiau.stock_actuel,
-        'Stock Minimum': materiau.stock_minimum,
-        'Fournisseur': materiau.fournisseur,
-        'Catégorie': materiau.categorie_nom
+      const dataToExport = materiauxFiltres.map(m => ({
+        'Code Produit': m.code_produit,
+        'Nom': m.nom,
+        'Description': m.description,
+        'Unité': m.unite,
+        'Stock Actuel': m.stock_actuel,
+        'Stock Minimum': m.stock_minimum,
+        'Fournisseur': m.fournisseur,
+        'Catégorie': m.categorie_nom
       }));
-
       const ws = XLSX.utils.json_to_sheet(dataToExport);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Matériaux');
       XLSX.writeFile(wb, 'catalogue_materiaux.xlsx');
-    } catch (error) {
-      console.error('Erreur export Excel:', error);
-      alert('Erreur lors de l\'export Excel');
+    } catch (err) {
+      console.error('Erreur export Excel:', err);
+      alert(
+        currentLang === 'fr' ? 'Erreur lors de l’export Excel' :
+        currentLang === 'en' ? 'Error exporting to Excel' :
+        'Excel’e aktarım sırasında hata'
+      );
     }
   };
 
@@ -354,31 +374,29 @@ const MagazinierCatalog: React.FC = () => {
     try {
       const jsPDF = await import('jspdf');
       const autoTable = await import('jspdf-autotable');
-      
       const doc = new jsPDF.default();
-      
-      doc.setFontSize(20);
+
+      doc.setFontSize(18);
       doc.text('Catalogue des Matériaux - DANTELA', 20, 20);
-      
-      const tableData = materiauxFiltres.map(materiau => [
-        materiau.code_produit,
-        materiau.nom,
-        materiau.unite,
-        materiau.stock_actuel.toString(),
-        materiau.stock_minimum.toString(),
-        materiau.categorie_nom
+      const body = materiauxFiltres.map(m => [
+        m.code_produit, m.nom, m.unite,
+        String(m.stock_actuel), String(m.stock_minimum), m.categorie_nom
       ]);
 
       autoTable.default(doc, {
         head: [['Code', 'Nom', 'Unité', 'Stock', 'Min', 'Catégorie']],
-        body: tableData,
+        body,
         startY: 30,
       });
 
       doc.save('catalogue_materiaux.pdf');
-    } catch (error) {
-      console.error('Erreur export PDF:', error);
-      alert('Erreur lors de l\'export PDF');
+    } catch (err) {
+      console.error('Erreur export PDF:', err);
+      alert(
+        currentLang === 'fr' ? 'Erreur lors de l’export PDF' :
+        currentLang === 'en' ? 'Error exporting to PDF' :
+        'PDF’e aktarım sırasında hata'
+      );
     }
   };
 

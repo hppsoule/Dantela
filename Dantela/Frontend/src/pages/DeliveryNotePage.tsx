@@ -1,11 +1,10 @@
+// src/pages/DeliveryNotePage.tsx
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { 
-  Printer, 
-  Download, 
-  ArrowLeft
-} from 'lucide-react';
+import { Printer, Download, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+
+const API = (import.meta.env.VITE_API_BASE_URL ?? '/api').replace(/\/$/, '');
 
 interface BonLivraison {
   id: string;
@@ -36,100 +35,124 @@ const DeliveryNotePage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  // Helpers d’affichage date/heure
+  const formatDate = (iso?: string) => {
+    try {
+      const d = iso ? new Date(iso) : new Date();
+      return d.toLocaleDateString('fr-FR');
+    } catch { return '--/--/----'; }
+  };
+  const formatTime = (iso?: string) => {
+    try {
+      const d = iso ? new Date(iso) : new Date();
+      return d.toLocaleTimeString('fr-FR');
+    } catch { return '--:--:--'; }
+  };
+
   useEffect(() => {
-    if (id) {
+    const run = async () => {
+      if (!id) return;
       if (id.startsWith('direct-')) {
-        // Pour les bons de distribution directe, créer des données simulées
         const directBonId = id.replace('direct-', '');
-        createDirectBonData(directBonId);
+        await createDirectBonData(directBonId);
       } else {
-        fetchBonLivraison();
+        await fetchBonLivraison();
       }
-    }
+    };
+    run();
   }, [id]);
 
-  const createDirectBonData = (bonId: string) => {
-    // Récupérer les données du bon depuis localStorage
-    const bonDataString = localStorage.getItem(`bon_direct_${bonId}`);
-   console.log('🔍 Recherche données bon dans localStorage:', `bon_direct_${bonId}`);
-   console.log('📦 Données trouvées:', bonDataString);
-   
-    if (bonDataString) {
-      const bonData = JSON.parse(bonDataString);
-     console.log('✅ Données bon récupérées:', bonData);
-      setBonLivraison(bonData);
-    } else {
-     console.log('⚠️ Aucune donnée trouvée, tentative récupération via API...');
-     // Essayer de récupérer via API
-     fetchBonFromAPI(bonId);
-   }
-   
-   setLoading(false);
- };
- 
- const fetchBonFromAPI = async (bonId: string) => {
-   try {
-     const token = localStorage.getItem('token');
-     //const response = await fetch(`http://localhost:5000/api/bons-livraison/${bonId}`, {
-     const response = await fetch(`/api/bons-livraison/${bonId}`, {
+  // Récupère un BL "distribution directe" (localStorage sinon API)
+  const createDirectBonData = async (bonId: string) => {
+    try {
+      setLoading(true);
+      setError('');
+      const bonDataString = localStorage.getItem(`bon_direct_${bonId}`);
+      if (bonDataString) {
+        const bonData = JSON.parse(bonDataString);
+        setBonLivraison(bonData);
+      } else {
+        await fetchBonFromAPI(bonId);
+      }
+    } catch (e) {
+      console.error(e);
+      setError('Erreur lors du chargement du bon.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-       headers: {
-         'Authorization': `Bearer ${token}`,
-         'Content-Type': 'application/json',
-       },
-     });
- 
-     if (response.ok) {
-       const data = await response.json();
-       const bonData = data.bon_livraison;
-       
-       console.log('✅ Bon récupéré via API:', bonData);
-       
-        // Gérer les destinataires custom
+  const fetchBonFromAPI = async (bonId: string) => {
+    try {
+      const token = localStorage.getItem('token') || '';
+      const response = await fetch(`${API}/bons-livraison/${bonId}`, {
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : '',
+          'Content-Type': 'application/json',
+        },
+      });
+  
+      if (response.ok) {
+        const data = await response.json();
+        const bonData = data.bon_livraison ?? {};
+
+        // Destinataire
         let destinataireNom = 'Distribution Directe';
         let destinataireEmail = 'distribution@dantela.cm';
         let destinataireTelephone = '+237669790437';
         let destinataireAdresse = '203 Boulevard de l\'OCAM, Mvog Mbi - Yaoundé';
         
         if (bonData.destinataire_custom) {
-          // Destinataire custom
           const customData = typeof bonData.destinataire_custom === 'string' ? 
             JSON.parse(bonData.destinataire_custom) : bonData.destinataire_custom;
-          
-          destinataireNom = customData.nom || 'Destinataire Custom';
+          destinataireNom = customData?.nom || destinataireNom;
           destinataireEmail = 'externe@dantela.cm';
-          destinataireTelephone = customData.telephone || '+237669790437';
-          destinataireAdresse = customData.adresse || '203 Boulevard de l\'OCAM, Mvog Mbi - Yaoundé';
+          destinataireTelephone = customData?.telephone || destinataireTelephone;
+          destinataireAdresse = customData?.adresse || destinataireAdresse;
         } else if (bonData.destinataire_nom) {
-          // Destinataire existant
           destinataireNom = bonData.destinataire_nom;
           destinataireEmail = bonData.destinataire_email || 'chef@dantela.cm';
           destinataireTelephone = bonData.destinataire_telephone || '+237669790437';
           destinataireAdresse = bonData.destinataire_adresse || 'Adresse du chantier';
         }
         
-       // Transformer les données pour l'affichage
-       const bon: BonLivraison = {
-         id: bonData.id,
-         numero_bon: bonData.numero_bon,
-         date_preparation: bonData.date_preparation || new Date().toISOString(),
-         demandeur_nom: destinataireNom,
-         demandeur_email: destinataireEmail,
-         demandeur_telephone: destinataireTelephone,
-         demandeur_adresse: destinataireAdresse,
-         nom_chantier: bonData.nom_chantier || 'Distribution Directe',
-         magazinier_nom: bonData.magazinier_nom || 'Magazinier Dantela',
-         depot_nom: bonData.depot_nom || 'Dépôt Principal Yaoundé',
-         items: bonData.items || []
-       };
-       
-       setBonLivraison(bon);
-     } else {
-       console.error('❌ Erreur récupération bon via API');
-      // Données par défaut si pas trouvées
-      const bon: BonLivraison = {
+        const bon: BonLivraison = {
+          id: bonData.id ?? bonId,
+          numero_bon: bonData.numero_bon ?? `BL-${new Date().getFullYear()}-0573`,
+          date_preparation: bonData.date_preparation || new Date().toISOString(),
+          demandeur_nom: destinataireNom,
+          demandeur_email: destinataireEmail,
+          demandeur_telephone: destinataireTelephone,
+          demandeur_adresse: destinataireAdresse,
+          nom_chantier: bonData.nom_chantier || 'Distribution Directe',
+          magazinier_nom: bonData.magazinier_nom || `${user?.prenom || ''} ${user?.nom || ''}`.trim() || 'Magazinier Dantela',
+          depot_nom: bonData.depot_nom || 'Dépôt Principal Yaoundé',
+          items: bonData.items || []
+        };
+        
+        setBonLivraison(bon);
+      } else {
+        // Repli si non trouvé
+        setBonLivraison({
+          id: bonId,
+          numero_bon: `BL-${new Date().getFullYear()}-0573`,
+          date_preparation: new Date().toISOString(),
+          demandeur_nom: 'Distribution Directe',
+          demandeur_email: 'distribution@dantela.cm',
+          demandeur_telephone: '+237669790437',
+          demandeur_adresse: '203 Boulevard de l\'OCAM, Mvog Mbi - Yaoundé',
+          nom_chantier: 'Distribution Directe',
+          magazinier_nom: `${user?.prenom || ''} ${user?.nom || ''}`.trim() || 'Magazinier Dantela',
+          depot_nom: 'Dépôt Principal Yaoundé',
+          items: []
+        });
+      }
+    } catch (error) {
+      console.error('❌ Erreur API bon de livraison:', error);
+      // Repli en cas d’erreur
+      setBonLivraison({
         id: bonId,
-        numero_bon: `BL-2025-0573`,
+        numero_bon: `BL-${new Date().getFullYear()}-0573`,
         date_preparation: new Date().toISOString(),
         demandeur_nom: 'Distribution Directe',
         demandeur_email: 'distribution@dantela.cm',
@@ -139,99 +162,67 @@ const DeliveryNotePage: React.FC = () => {
         magazinier_nom: `${user?.prenom || ''} ${user?.nom || ''}`.trim() || 'Magazinier Dantela',
         depot_nom: 'Dépôt Principal Yaoundé',
         items: []
-      };
-      setBonLivraison(bon);
+      });
     }
-   } catch (error) {
-     console.error('❌ Erreur API bon de livraison:', error);
-     // Données par défaut en cas d'erreur
-     const bon: BonLivraison = {
-       id: bonId,
-       numero_bon: `BL-2025-0573`,
-       date_preparation: new Date().toISOString(),
-       demandeur_nom: 'Distribution Directe',
-       demandeur_email: 'distribution@dantela.cm',
-       demandeur_telephone: '+237669790437',
-       demandeur_adresse: '203 Boulevard de l\'OCAM, Mvog Mbi - Yaoundé',
-       nom_chantier: 'Distribution Directe',
-       magazinier_nom: `${user?.prenom || ''} ${user?.nom || ''}`.trim() || 'Magazinier Dantela',
-       depot_nom: 'Dépôt Principal Yaoundé',
-       items: []
-     };
-     setBonLivraison(bon);
-   }
- };
+  };
     
- const fetchBonLivraison = async () => {
-  try {
-    const token = localStorage.getItem('token');
+  const fetchBonLivraison = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      const token = localStorage.getItem('token') || '';
 
-    // ✅ URL relative (fonctionne en dev via Vite proxy et en prod via vercel.json)
-    const response = await fetch(`/api/demandes/${id}`, {
-      headers: {
-        'Authorization': token ? `Bearer ${token}` : '',
-        'Content-Type': 'application/json',
-      },
-    });
+      const response = await fetch(`${API}/demandes/${id}`, {
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : '',
+          'Content-Type': 'application/json',
+        },
+      });
 
-    if (!response.ok) {
-      setError(`Erreur HTTP: ${response.status}`);
-      return;
+      if (!response.ok) {
+        setError(`Erreur HTTP: ${response.status}`);
+        return;
+      }
+
+      const data = await response.json();
+      const demande = data.demande || {};
+
+      const destinataireNom =
+        demande.demandeur_nom || demande.destinataire_nom || 'Non spécifié';
+      const destinataireEmail =
+        demande.demandeur_email || demande.destinataire_email || 'non.specifie@exemple.com';
+      const destinataireTelephone =
+        demande.demandeur_telephone || demande.destinataire_telephone || '—';
+      const destinataireAdresse =
+        demande.demandeur_adresse || demande.destinataire_adresse || '—';
+
+      const bon: BonLivraison = {
+        id: demande.id,
+        numero_bon: demande.numero_bon ?? `BL-${new Date().getFullYear()}-0573`,
+        date_preparation: demande.date_preparation ?? new Date().toISOString(),
+        demandeur_nom: destinataireNom,
+        demandeur_email: destinataireEmail,
+        demandeur_telephone: destinataireTelephone,
+        demandeur_adresse: destinataireAdresse,
+        nom_chantier: demande.nom_chantier || 'Non spécifié',
+        magazinier_nom: `${user?.prenom || ''} ${user?.nom || ''}`.trim() || 'Non spécifié',
+        depot_nom: demande.depot_nom || 'Dépôt Principal',
+        items: demande.items || [],
+      };
+
+      setBonLivraison(bon);
+    } catch (error) {
+      console.error('Erreur:', error);
+      setError('Erreur de connexion');
+    } finally {
+      setLoading(false);
     }
-
-    const data = await response.json();
-    const demande = data.demande || {};
-
-    // ✅ Sécurise les champs destinataire
-    const destinataireNom =
-      demande.demandeur_nom || demande.destinataire_nom || 'Non spécifié';
-    const destinataireEmail =
-      demande.demandeur_email || demande.destinataire_email || 'non.specifie@exemple.com';
-    const destinataireTelephone =
-      demande.demandeur_telephone || demande.destinataire_telephone || '—';
-    const destinataireAdresse =
-      demande.demandeur_adresse || demande.destinataire_adresse || '—';
-
-    // ✅ Construction des données du bon
-    const bon: BonLivraison = {
-      id: demande.id,
-      numero_bon: `BL-${new Date().getFullYear()}-0573`,
-      date_preparation: new Date().toISOString(),
-      demandeur_nom: destinataireNom,
-      demandeur_email: destinataireEmail,
-      demandeur_telephone: destinataireTelephone,
-      demandeur_adresse: destinataireAdresse,
-      nom_chantier: demande.nom_chantier || 'Non spécifié',
-      magazinier_nom: `${user?.prenom || ''} ${user?.nom || ''}`.trim() || 'Non spécifié',
-      depot_nom: demande.depot_nom || 'Dépôt Principal',
-      items: demande.items || [],
-    };
-
-    console.log('📋 Bon transformé pour affichage:', {
-      numero_bon: bon.numero_bon,
-      destinataire: {
-        nom: bon.demandeur_nom,
-        telephone: bon.demandeur_telephone,
-        adresse: bon.demandeur_adresse,
-      },
-      items_count: bon.items.length,
-    });
-
-    setBonLivraison(bon);
-  } catch (error) {
-    console.error('Erreur:', error);
-    setError('Erreur de connexion');
-  } finally {
-    setLoading(false);
-  }
-};
-
-  const handlePrint = () => {
-    window.print();
   };
 
+  const handlePrint = () => window.print();
+
   const safeString = (value: any): string => {
-    if (value === null || value === undefined) return 'Non spécifié';
+    if (value === null || value === undefined || value === '') return 'Non spécifié';
     return String(value);
   };
 
@@ -248,7 +239,7 @@ const DeliveryNotePage: React.FC = () => {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <h3 className="text-lg font-medium text-gray-900 mb-2">Erreur de chargement</h3>
-          <p className="text-gray-600 mb-4">{error}</p>
+          <p className="text-gray-600 mb-4">{error || 'Données indisponibles'}</p>
           <button
             onClick={() => navigate(-1)}
             className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
@@ -363,15 +354,15 @@ const DeliveryNotePage: React.FC = () => {
                 <div className="bon-details">
                   <div className="detail-row">
                     <span className="label">Numéro Bon:</span>
-                    <span className="value">BL-2025-0573</span>
+                    <span className="value">{safeString(bonLivraison.numero_bon)}</span>
                   </div>
                   <div className="detail-row">
                     <span className="label">Date:</span>
-                    <span className="value">21/08/2025</span>
+                    <span className="value">{formatDate(bonLivraison.date_preparation)}</span>
                   </div>
                   <div className="detail-row">
                     <span className="label">Heure:</span>
-                    <span className="value">15:05:20</span>
+                    <span className="value">{formatTime(bonLivraison.date_preparation)}</span>
                   </div>
                 </div>
                 
@@ -389,7 +380,7 @@ const DeliveryNotePage: React.FC = () => {
               </div>
             </div>
 
-            {/* Tableau des matériaux - Zone flexible */}
+            {/* Tableau des matériaux */}
             <div className="materials-section">
               <table className="materials-table">
                 <thead>
@@ -401,7 +392,6 @@ const DeliveryNotePage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="table-body">
-                  {/* Créer 15 lignes fixes pour le tableau */}
                   {Array.from({ length: 15 }, (_, index) => {
                     const item = bonLivraison.items[index];
                     return (
@@ -418,7 +408,7 @@ const DeliveryNotePage: React.FC = () => {
             </div>
           </div>
 
-          {/* SIGNATURES FIXES - Position absolue en bas */}
+          {/* SIGNATURES FIXES */}
           <div className="signatures-section">
             <div className="signature-row">
               <div className="signature-box">
@@ -426,13 +416,11 @@ const DeliveryNotePage: React.FC = () => {
                 <div className="signature-line"></div>
                 <p className="signature-date">Date: ___________</p>
               </div>
-              
               <div className="signature-box">
                 <p className="signature-label">Signature Récipiendaire:</p>
                 <div className="signature-line"></div>
                 <p className="signature-date">Date: ___________</p>
               </div>
-              
               <div className="signature-box">
                 <p className="signature-label">Signature Chef de Chantier:</p>
                 <div className="signature-line"></div>
@@ -441,7 +429,7 @@ const DeliveryNotePage: React.FC = () => {
             </div>
           </div>
 
-          {/* PIED DE PAGE FIXE - Position absolue en bas */}
+          {/* PIED DE PAGE FIXE */}
           <div className="document-footer">
             <div className="footer-content">
               <p className="footer-address">203, Boulevard de l'OCAM,Rue 4.017, B.P:156263 Mvog-Mbi/Yaoundé -CAMEROUN</p>
@@ -450,6 +438,7 @@ const DeliveryNotePage: React.FC = () => {
           </div>
         </div>
       </div>
+
 
       {/* CSS EXACT selon Figma - Format A4 fixe */}
       <style jsx>{`

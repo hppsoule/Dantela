@@ -55,6 +55,10 @@ import {
 } from 'recharts';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { PendingUser, Depot } from '../../types';
+// Dev (Vite): '/api' -> proxy vers http://localhost:5000
+// Prod (Vercel): '/api' réécrit vers https://dantela.onrender.com/api via vercel.json
+const API = (import.meta.env.VITE_API_BASE_URL ?? '/api').replace(/\/$/, '');
+
 
 interface DashboardData {
   users: {
@@ -157,72 +161,87 @@ const DirecteurDashboard: React.FC = () => {
   }, [selectedPeriod]);
 
   const fetchDashboardData = async () => {
-    try {
-      setRefreshing(true);
-      const token = localStorage.getItem('token');
-      if (!token) {
-        setError('Session expirée');
-        return;
-      }
+  try {
+    setRefreshing(true);
+    setError('');
 
-      const headers = {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      };
-
-      // Récupérer les données du dashboard depuis l'API
-      const [overviewResponse, pendingResponse] = await Promise.all([
-        fetch('http://localhost:5000/api/reports/overview', { headers }),
-        fetch('http://localhost:5000/api/admin/pending-users', { headers })
-      ]);
-
-      if (overviewResponse.ok) {
-        const overviewData = await overviewResponse.json();
-        if (overviewData.success) {
-          setDashboardData(overviewData.data);
-        }
-      }
-
-      if (pendingResponse.ok) {
-        const pendingData = await pendingResponse.json();
-        setPendingUsers(pendingData.users || []);
-      }
-
-    } catch (error) {
-      console.error('Erreur lors du chargement du dashboard:', error);
-      setError('Erreur de connexion');
-    } finally {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setError('Session expirée');
       setLoading(false);
       setRefreshing(false);
+      return;
     }
-  };
+
+    const headers: HeadersInit = {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    };
+
+    // passer la période au backend
+    const params = new URLSearchParams({ period: selectedPeriod });
+
+    // ✅ plus de 'http://localhost:5000', on utilise API
+    const [overviewResponse, pendingResponse] = await Promise.all([
+      fetch(`${API}/reports/overview?${params.toString()}`, { headers }),
+      fetch(`${API}/admin/pending-users`, { headers }),
+    ]);
+
+    if (!overviewResponse.ok) {
+      throw new Error('Erreur lors du chargement des données du tableau de bord');
+    }
+    const overviewData = await overviewResponse.json();
+    if (overviewData?.success) {
+      setDashboardData(overviewData.data);
+    } else {
+      throw new Error(overviewData?.message || 'Erreur chargement overview');
+    }
+
+    if (pendingResponse.ok) {
+      const pendingData = await pendingResponse.json();
+      setPendingUsers(pendingData.users || []);
+    } else {
+      // pas bloquant pour l’écran
+      console.warn('Chargement des utilisateurs en attente: statut', pendingResponse.status);
+    }
+  } catch (err) {
+    console.error('Erreur lors du chargement du dashboard:', err);
+    setError(err instanceof Error ? err.message : 'Erreur de connexion');
+  } finally {
+    setLoading(false);
+    setRefreshing(false);
+  }
+};
 
   const handleValidateUser = async (userId: string, action: 'approve' | 'reject') => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/admin/validate-user/${userId}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ action }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        alert(data.message);
-        // Recharger les données
-        fetchDashboardData();
-      } else {
-        const errorData = await response.json();
-        alert(errorData.message);
-      }
-    } catch (error) {
-      console.error('Erreur lors de la validation:', error);
-      alert('Erreur lors de la validation');
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      alert('Session expirée');
+      return;
     }
-  };
+
+    const response = await fetch(`${API}/admin/validate-user/${userId}`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ action }),
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.message || 'Erreur lors de la validation');
+    }
+
+    alert(data.message || (action === 'approve' ? 'Utilisateur approuvé' : 'Utilisateur rejeté'));
+    fetchDashboardData(); // recharger les données
+  } catch (error) {
+    console.error('Erreur lors de la validation:', error);
+    alert(error instanceof Error ? error.message : 'Erreur lors de la validation');
+  }
+};
 
   const formatNumber = (num: number) => {
     return new Intl.NumberFormat('fr-FR').format(num);
