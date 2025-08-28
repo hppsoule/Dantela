@@ -1,7 +1,7 @@
 // src/components/Navbar.tsx
 import React, { useState, useEffect } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { Building2, Menu, X, Phone, Mail } from 'lucide-react';
+import { Building2, Menu, X } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import LanguageSelector from './LanguageSelector';
 
@@ -31,39 +31,13 @@ const Navbar: React.FC = () => {
 
   return (
     <nav className="bg-white shadow-lg sticky top-0 z-50">
-      {/* Top bar with contact info */}
+      {/* Top bar (vide après nettoyage) */}
       <div className="bg-slate-800 text-white py-2">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center text-sm">
-            <div className="flex items-center space-x-6">
-              <div className="flex items-center space-x-2">
-                <Phone className="w-4 h-4" />
-                <span>+237 669 790 437</span>
-              </div>
-
-              {/* ⬇️ Masqué : e-mail de contact */}
-              {/*
-              <div className="flex items-center space-x-2">
-                <Mail className="w-4 h-4" />
-                <span>contact@dantela.cm</span>
-              </div>
-              */}
-            </div>
-
-            {/* ⬇️ Masqué : bloc "Utilisateurs Actifs" */}
-            {/*
-            <div className="hidden md:block text-right">
-              <div>Utilisateurs Actifs</div>
-              <div>3 comptes validés et opérationnels</div>
-            </div>
-            */}
-
-            {/* ⬇️ Masqué : adresse */}
-            {/*
-            <div className="hidden md:block">
-              <span>203 Bd de l&apos;OCAM, Mvog Mbi - Yaoundé</span>
-            </div>
-            */}
+            <div className="flex items-center space-x-6" />
+            <div className="hidden md:block" />
+            <div className="hidden md:block" />
           </div>
         </div>
       </div>
