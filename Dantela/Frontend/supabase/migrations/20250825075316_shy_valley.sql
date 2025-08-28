@@ -972,7 +972,7 @@ INSERT INTO users (
 ) VALUES 
 (
     'directeur@dantela.cm',
-    '$2a$10$OBe8dRHReFTgbYrJQXAhQ.LIyFIbR.ynZwy8HAdUgSDNi03CSY7by', -- admin123
+    '$2a$12$Ljjp9M6VsddIIl8M7fLsCuf04K4PY5msQhrTse5O6ePZLWnjjFNUC', -- admin123
     'DANTELA',
     'Directeur',
     '+237669790437',
@@ -983,7 +983,7 @@ INSERT INTO users (
 ),
 (
     'soulemane@dantela.cm',
-    '$2a$10$OBe8dRHReFTgbYrJQXAhQ.LIyFIbR.ynZwy8HAdUgSDNi03CSY7by', -- admin123
+    '$2a$12$Ljjp9M6VsddIIl8M7fLsCuf04K4PY5msQhrTse5O6ePZLWnjjFNUC', -- admin123
     'Djacko',
     'Soulemane',
     '+237652679166',
@@ -994,7 +994,7 @@ INSERT INTO users (
 ),
 (
     'izmet@dantela.cm',
-    '$2a$10$OBe8dRHReFTgbYrJQXAhQ.LIyFIbR.ynZwy8HAdUgSDNi03CSY7by', -- admin123
+    '$2a$12$Ljjp9M6VsddIIl8M7fLsCuf04K4PY5msQhrTse5O6ePZLWnjjFNUC', -- admin123
     'Dantela',
     'Izmet',
     '+237677123456',
