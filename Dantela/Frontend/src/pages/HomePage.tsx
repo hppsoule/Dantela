@@ -230,14 +230,14 @@ const HomePage: React.FC = () => {
                 <Phone className="w-8 h-8" />
               </div>
               <h3 className="text-xl font-semibold mb-2">Téléphone</h3>
-              <p className="text-gray-300">+237 669 790 437</p>
+              <p className="text-gray-300">+237 650 82 22 47 </p>
             </div>
             <div className="text-center">
               <div className="bg-blue-600 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Mail className="w-8 h-8" />
               </div>
               <h3 className="text-xl font-semibold mb-2">Email</h3>
-              <p className="text-gray-300">contact@dantela.cm</p>
+              <p className="text-gray-300">dantelasarl@dantela.com</p>
             </div>
             <div className="text-center">
               <div className="bg-blue-600 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
