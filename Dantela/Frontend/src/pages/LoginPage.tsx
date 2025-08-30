@@ -227,18 +227,18 @@ const LoginPage: React.FC = () => {
 
           {/* Right Panel - Image */}
           <div className="lg:w-1/2 bg-gradient-to-br from-blue-600 to-blue-800 p-8 lg:p-12 flex items-center justify-center">
-  <div className="text-center text-white">
-    <img
-      src="/1657650552451Dantela.jpg" // Image dans le dossier public
-      alt="Construction moderne"
-      className="w-full max-w-md rounded-xl shadow-2xl mb-8"
-    />
-    <h3 className="text-3xl font-bold mb-4">DANTELA</h3>
-    <p className="text-blue-100 text-lg">
-      Système de gestion des dépôts et matériaux de construction
-    </p>
-  </div>
-</div>
+          <div className="text-center text-white">
+            <img
+              src="/1657650552451Dantela.jpg" // Image dans le dossier public
+              alt="Construction moderne"
+              className="w-full max-w-md rounded-xl shadow-2xl mb-8"
+            />
+            <h3 className="text-3xl font-bold mb-4">DANTELA</h3>
+            <p className="text-blue-100 text-lg">
+              Système de gestion des dépôts et matériaux de construction
+            </p>
+          </div>
+        </div>
 
         </div>
       </div>
