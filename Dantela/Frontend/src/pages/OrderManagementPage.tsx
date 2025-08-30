@@ -220,48 +220,51 @@ const OrderManagementPage: React.FC = () => {
   };
 
   // Générer le bon
-  const handleProcessOrder = async (demandeId: string) => {
-    try {
-      setError('');
+  // en haut : tu as déjà useNavigate()
+const handleProcessOrder = async (demandeId: string) => {
+  try {
+    setError('');
 
-      const token = localStorage.getItem('token');
-      if (!token) {
-        setError('Session expirée');
-        return;
-      }
-
-      console.log('📦 Traitement commande:', demandeId);
-
-      const response = await fetch(`${API}/demandes/${demandeId}/process`, {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify({ commentaire: 'Bon de livraison généré automatiquement' }),
-      });
-
-      if (!response.ok) {
-        const txt = await response.text().catch(() => '');
-        throw new Error(`Erreur HTTP: ${response.status} ${txt}`);
-      }
-
-      const data = await response.json();
-
-      if (data.success && data.bon_livraison) {
-        const bonId = data.bon_livraison.id;
-        const numeroBon = data.bon_livraison.numero_bon;
-
-        console.log('✅ Bon généré avec succès:', { id: bonId, numero_bon: numeroBon, response_data: data.bon_livraison });
-        alert(`✅ Bon de livraison ${numeroBon} généré avec succès !`);
-
-        await openBonLivraisonPdf(bonId);
-        fetchDemandes();
-      } else {
-        throw new Error(data.message || 'Erreur lors de la génération du bon');
-      }
-    } catch (err) {
-      console.error('❌ Erreur traitement commande:', err);
-      alert(`❌ ${err instanceof Error ? err.message : 'Erreur lors du traitement'}`);
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setError('Session expirée');
+      return;
     }
-  };
+
+    const response = await fetch(`${API}/demandes/${demandeId}/process`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ commentaire: 'Bon de livraison généré automatiquement' }),
+    });
+
+    if (!response.ok) {
+      const txt = await response.text().catch(() => '');
+      throw new Error(`Erreur HTTP: ${response.status} ${txt}`);
+    }
+
+    const data = await response.json();
+
+    if (data.success && data.bon_livraison) {
+      const bonId =
+        data.bon_livraison.id || data.bon_livraison.bon_id || data.bon_livraison?.bon?.id;
+
+      // ✅ Ouvre ta page imprimable front (adaptE le chemin à ta route réelle)
+      navigate(`/delivery-note/${bonId}`);
+
+      // (optionnel) lancer l’impression automatique après chargement
+      // setTimeout(() => window.print(), 500);
+
+      // on recharge la liste en arrière-plan
+      fetchDemandes();
+      return;
+    }
+    throw new Error(data.message || 'Erreur lors de la génération du bon');
+  } catch (err) {
+    console.error('❌ Erreur traitement commande:', err);
+    alert(`❌ ${err instanceof Error ? err.message : 'Erreur lors du traitement'}`);
+  }
+};
+
 
   // Valider
   const handleValidation = async () => {
