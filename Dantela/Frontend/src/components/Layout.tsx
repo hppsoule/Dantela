@@ -85,14 +85,22 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         onClick={(e) => e.stopPropagation()}
       >
         {/* Logo */}
-        <div className="flex items-center justify-center h-16 px-4 bg-teal-900 border-b border-teal-700">
-          <div className="flex items-center space-x-3">
-            <div className="bg-white p-2 rounded-lg">
-              <Building2 className="w-6 h-6 text-teal-600" />
-            </div>
-            <h1 className="text-xl font-bold text-white">DANTELA</h1>
-          </div>
-        </div>
+<div className="flex items-center justify-center h-16 px-4 bg-teal-900 border-b border-teal-700">
+  <div className="flex items-center space-x-3">
+    {/* Image du logo depuis /public */}
+    <div className="bg-white rounded-lg p-1">
+      <img
+        src="/dantela.png"     // <-- Frontend/public/dantela.png
+        alt="DANTELA"
+        className="h-8 w-auto block"
+        decoding="async"
+      />
+    </div>
+
+    <h1 className="text-xl font-bold text-white">DANTELA</h1>
+  </div>
+</div>
+
 
         {/* Titre role */}
         {user?.role === 'magazinier' && (
