@@ -1,11 +1,27 @@
 import React, { useState, useEffect } from 'react';
-import { Package as PackageIcon, CheckCircle as CheckIcon, Clock as ClockIcon, AlertTriangle as AlertIcon, User as UserIcon, Truck as TruckIcon, FileText as FileIcon, X as XIcon, XCircle as XCircleIcon, Trash2 as TrashIcon } from 'lucide-react';
+import {
+  Package as PackageIcon,
+  Search as SearchIcon,
+  Filter as FilterIcon,
+  Eye as EyeIcon,
+  CheckCircle as CheckIcon,
+  Clock as ClockIcon,
+  AlertTriangle as AlertIcon,
+  User as UserIcon,
+  Calendar as CalendarIcon,
+  MessageSquare as MessageIcon,
+  Truck as TruckIcon,
+  FileText as FileIcon,
+  X as XIcon,
+  XCircle as XCircleIcon,
+  Trash2 as TrashIcon,
+} from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 
-// API base URL
+// Base API (dev: /api via proxy Vite, prod: /api via vercel.json ou VITE_API_BASE_URL)
 const API = (import.meta.env.VITE_API_BASE_URL ?? '/api').replace(/\/$/, '');
 
 interface Demande {
@@ -96,6 +112,7 @@ const OrderManagementPage: React.FC = () => {
         return;
       }
 
+      // ✅ Corrigé: pas de /api en double
       const res = await fetch(`${API}/demandes`, { headers: authHeaders() });
 
       if (!res.ok) throw new Error(`Erreur HTTP: ${res.status}`);
@@ -114,9 +131,10 @@ const OrderManagementPage: React.FC = () => {
     }
   };
 
-  // Charger au montage
+  // Charger au montage (⚠️ un seul useEffect)
   useEffect(() => {
     fetchDemandes();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Détails d’une demande
@@ -129,6 +147,8 @@ const OrderManagementPage: React.FC = () => {
         setError('Session expirée');
         return;
       }
+
+      console.log('📋 Récupération détails demande:', demandeId);
 
       const response = await fetch(`${API}/demandes/${demandeId}`, {
         headers: authHeaders(),
@@ -155,6 +175,10 @@ const OrderManagementPage: React.FC = () => {
             stock_actuel: item.stock_actuel,
           })),
         });
+        console.log('✅ Détails demande récupérés:', {
+          numero: data.demande.numero_demande,
+          items: data.demande.items?.length || 0,
+        });
         setShowValidationModal(true);
       } else {
         throw new Error(data.message || 'Demande non trouvée');
@@ -166,8 +190,36 @@ const OrderManagementPage: React.FC = () => {
   };
 
   /**
-   * Génère la commande et redirige vers la page de bon de livraison
+   * Ouvre le PDF du bon de livraison dans un nouvel onglet.
    */
+  const openBonLivraisonPdf = async (bonId: string) => {
+    const token = localStorage.getItem('token') || '';
+    const headers: HeadersInit = {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      Accept: 'application/pdf',
+    };
+
+    const tryOpen = async (path: string) => {
+      const res = await fetch(`${API}${path}`, { headers, credentials: 'include' });
+      if (!res.ok) return false;
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      setTimeout(() => URL.revokeObjectURL(url), 30000);
+      return true;
+    };
+
+    // Route principale attendue côté backend
+    if (await tryOpen(`/bons-livraison/${bonId}/pdf`)) return;
+
+    // Fallbacks éventuels si tu as d’autres alias côté API
+    if (await tryOpen(`/bons/${bonId}/pdf`)) return;
+    if (await tryOpen(`/bon-livraison/${bonId}/pdf`)) return;
+
+    setError("Impossible d'ouvrir le bon de livraison (PDF introuvable). Vérifiez la route côté API.");
+  };
+
+  // Générer le bon
   const handleProcessOrder = async (demandeId: string) => {
     try {
       setError('');
@@ -177,6 +229,8 @@ const OrderManagementPage: React.FC = () => {
         setError('Session expirée');
         return;
       }
+
+      console.log('📦 Traitement commande:', demandeId);
 
       const response = await fetch(`${API}/demandes/${demandeId}/process`, {
         method: 'POST',
@@ -193,11 +247,12 @@ const OrderManagementPage: React.FC = () => {
 
       if (data.success && data.bon_livraison) {
         const bonId = data.bon_livraison.id;
+        const numeroBon = data.bon_livraison.numero_bon;
 
-        // Redirection vers la page de bon de livraison
-        navigate(`/delivery-note/${bonId}`);
+        console.log('✅ Bon généré avec succès:', { id: bonId, numero_bon: numeroBon, response_data: data.bon_livraison });
+        alert(`✅ Bon de livraison ${numeroBon} généré avec succès !`);
 
-        // Recharger les demandes en arrière-plan
+        await openBonLivraisonPdf(bonId);
         fetchDemandes();
       } else {
         throw new Error(data.message || 'Erreur lors de la génération du bon');
@@ -208,7 +263,7 @@ const OrderManagementPage: React.FC = () => {
     }
   };
 
-  // Validation
+  // Valider
   const handleValidation = async () => {
     if (!selectedDemande) return;
 
@@ -221,6 +276,8 @@ const OrderManagementPage: React.FC = () => {
         setError('Session expirée');
         return;
       }
+
+      console.log('✅ Validation demande:', selectedDemande.numero_demande, 'Action:', validationForm.action);
 
       const response = await fetch(`${API}/demandes/${selectedDemande.id}/validate`, {
         method: 'PUT',
@@ -241,6 +298,7 @@ const OrderManagementPage: React.FC = () => {
 
       if (data.success) {
         alert(`✅ ${data.message}`);
+        console.log('✅ Validation réussie:', data.demande?.numero_demande);
         setShowValidationModal(false);
         setSelectedDemande(null);
         fetchDemandes();
@@ -255,7 +313,7 @@ const OrderManagementPage: React.FC = () => {
     }
   };
 
-  // Suppression
+  // Supprimer
   const handleDeleteOrder = async () => {
     if (!selectedDemande) return;
 
@@ -269,10 +327,14 @@ const OrderManagementPage: React.FC = () => {
         return;
       }
 
+      console.log('🗑️ Suppression demande:', selectedDemande.numero_demande);
+
       const response = await fetch(`${API}/demandes/${selectedDemande.id}`, {
         method: 'DELETE',
         headers: authHeaders(),
-        body: JSON.stringify({ motif: deleteForm.motif || 'Suppression par magazinier' }),
+        body: JSON.stringify({
+          motif: deleteForm.motif || 'Suppression par magazinier',
+        }),
       });
 
       if (!response.ok) {
@@ -284,6 +346,12 @@ const OrderManagementPage: React.FC = () => {
 
       if (data.success) {
         alert(`✅ ${data.message}`);
+        console.log('✅ Suppression réussie:', {
+          numero_demande: selectedDemande.numero_demande,
+          items_sauvegardés: data.items_count,
+          historique: data.history_saved,
+        });
+
         setShowDeleteModal(false);
         setSelectedDemande(null);
         setDeleteForm({ motif: '' });
@@ -301,11 +369,85 @@ const OrderManagementPage: React.FC = () => {
 
   // Filtrer les demandes
   const demandesFiltrees = demandes.filter((demande) => {
-    const matchSearch = demande.numero_demande.toLowerCase().includes(searchTerm.toLowerCase()) || demande.demandeur_nom.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchSearch =
+      demande.numero_demande.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      demande.demandeur_nom.toLowerCase().includes(searchTerm.toLowerCase());
+
     const matchStatus = selectedStatus === 'all' || demande.statut === selectedStatus;
     const matchPriority = selectedPriority === 'all' || demande.priorite === selectedPriority;
+
     return matchSearch && matchStatus && matchPriority;
   });
+
+  const getStatusColor = (statut: string) => {
+    switch (statut) {
+      case 'en_attente':
+        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'approuvee':
+        return 'bg-green-100 text-green-800 border-green-200';
+      case 'rejetee':
+        return 'bg-red-100 text-red-800 border-red-200';
+      case 'en_preparation':
+        return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'livree':
+        return 'bg-gray-100 text-gray-800 border-gray-200';
+      default:
+        return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
+  };
+
+  const getStatusIcon = (statut: string) => {
+    switch (statut) {
+      case 'en_attente':
+        return <ClockIcon className="w-4 h-4" />;
+      case 'approuvee':
+        return <CheckIcon className="w-4 h-4" />;
+      case 'rejetee':
+        return <XCircleIcon className="w-4 h-4" />;
+      case 'en_preparation':
+        return <PackageIcon className="w-4 h-4" />;
+      case 'livree':
+        return <TruckIcon className="w-4 h-4" />;
+      default:
+        return <ClockIcon className="w-4 h-4" />;
+    }
+  };
+
+  const getPriorityColor = (priorite: string) => {
+    switch (priorite) {
+      case 'urgente':
+        return 'bg-red-500';
+      case 'haute':
+        return 'bg-orange-500';
+      case 'normale':
+        return 'bg-blue-500';
+      case 'basse':
+        return 'bg-gray-500';
+      default:
+        return 'bg-gray-500';
+    }
+  };
+
+  const getStatusText = (statut: string) => {
+    switch (statut) {
+      case 'en_attente':
+        return language === 'fr'
+          ? 'En attente de validation'
+          : language === 'en'
+          ? 'Pending validation'
+          : 'Onay bekliyor';
+      case 'approuvee':
+        return language === 'fr' ? 'Approuvée' : language === 'en' ? 'Approved' : 'Onaylandı';
+      case 'rejetee':
+        return language === 'fr' ? 'Rejetée' : language === 'en' ? 'Rejected' : 'Reddedildi';
+      case 'en_preparation':
+        return language === 'fr' ? 'En préparation' : language === 'en' ? 'In preparation' : 'Hazırlanıyor';
+      case 'livree':
+        return language === 'fr' ? 'Livrée' : language === 'en' ? 'Delivered' : 'Teslim edildi';
+      default:
+        return statut;
+    }
+  };
 
   // Statistiques
   const stats = {
