@@ -6,6 +6,13 @@ import { useAuth } from '../contexts/AuthContext';
 
 const API = (import.meta.env.VITE_API_BASE_URL ?? '/api').replace(/\/$/, '');
 
+interface BonItem {
+  id: string;
+  code_produit: string;
+  materiau_nom: string;
+  quantite_demandee: number;
+  unite: string;
+}
 interface BonLivraison {
   id: string;
   numero_bon: string;
@@ -17,36 +24,33 @@ interface BonLivraison {
   nom_chantier: string;
   magazinier_nom: string;
   depot_nom: string;
-  items: Array<{
-    id: string;
-    code_produit: string;
-    materiau_nom: string;
-    quantite_demandee: number;
-    unite: string;
-  }>;
+  items: BonItem[];
 }
 
 const DeliveryNotePage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
-  
+
   const [bonLivraison, setBonLivraison] = useState<BonLivraison | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // Helpers d’affichage date/heure
   const formatDate = (iso?: string) => {
     try {
       const d = iso ? new Date(iso) : new Date();
       return d.toLocaleDateString('fr-FR');
-    } catch { return '--/--/----'; }
+    } catch {
+      return '--/--/----';
+    }
   };
   const formatTime = (iso?: string) => {
     try {
       const d = iso ? new Date(iso) : new Date();
       return d.toLocaleTimeString('fr-FR');
-    } catch { return '--:--:--'; }
+    } catch {
+      return '--:--:--';
+    }
   };
 
   useEffect(() => {
@@ -62,7 +66,6 @@ const DeliveryNotePage: React.FC = () => {
     run();
   }, [id]);
 
-  // Récupère un BL "distribution directe" (localStorage sinon API)
   const createDirectBonData = async (bonId: string) => {
     try {
       setLoading(true);
@@ -87,24 +90,25 @@ const DeliveryNotePage: React.FC = () => {
       const token = localStorage.getItem('token') || '';
       const response = await fetch(`${API}/bons-livraison/${bonId}`, {
         headers: {
-          'Authorization': token ? `Bearer ${token}` : '',
+          Authorization: token ? `Bearer ${token}` : '',
           'Content-Type': 'application/json',
         },
       });
-  
+
       if (response.ok) {
         const data = await response.json();
         const bonData = data.bon_livraison ?? {};
 
-        // Destinataire
         let destinataireNom = 'Distribution Directe';
         let destinataireEmail = 'distribution@dantela.cm';
         let destinataireTelephone = '+237669790437';
-        let destinataireAdresse = '203 Boulevard de l\'OCAM, Mvog Mbi - Yaoundé';
-        
+        let destinataireAdresse = "203 Boulevard de l'OCAM, Mvog Mbi - Yaoundé";
+
         if (bonData.destinataire_custom) {
-          const customData = typeof bonData.destinataire_custom === 'string' ? 
-            JSON.parse(bonData.destinataire_custom) : bonData.destinataire_custom;
+          const customData =
+            typeof bonData.destinataire_custom === 'string'
+              ? JSON.parse(bonData.destinataire_custom)
+              : bonData.destinataire_custom;
           destinataireNom = customData?.nom || destinataireNom;
           destinataireEmail = 'externe@dantela.cm';
           destinataireTelephone = customData?.telephone || destinataireTelephone;
@@ -115,7 +119,7 @@ const DeliveryNotePage: React.FC = () => {
           destinataireTelephone = bonData.destinataire_telephone || '+237669790437';
           destinataireAdresse = bonData.destinataire_adresse || 'Adresse du chantier';
         }
-        
+
         const bon: BonLivraison = {
           id: bonData.id ?? bonId,
           numero_bon: bonData.numero_bon ?? `BL-${new Date().getFullYear()}-0573`,
@@ -125,14 +129,16 @@ const DeliveryNotePage: React.FC = () => {
           demandeur_telephone: destinataireTelephone,
           demandeur_adresse: destinataireAdresse,
           nom_chantier: bonData.nom_chantier || 'Distribution Directe',
-          magazinier_nom: bonData.magazinier_nom || `${user?.prenom || ''} ${user?.nom || ''}`.trim() || 'Magazinier Dantela',
+          magazinier_nom:
+            bonData.magazinier_nom ||
+            `${user?.prenom || ''} ${user?.nom || ''}`.trim() ||
+            'Magazinier Dantela',
           depot_nom: bonData.depot_nom || 'Dépôt Principal Yaoundé',
-          items: bonData.items || []
+          items: bonData.items || [],
         };
-        
+
         setBonLivraison(bon);
       } else {
-        // Repli si non trouvé
         setBonLivraison({
           id: bonId,
           numero_bon: `BL-${new Date().getFullYear()}-0573`,
@@ -140,16 +146,16 @@ const DeliveryNotePage: React.FC = () => {
           demandeur_nom: 'Distribution Directe',
           demandeur_email: 'distribution@dantela.cm',
           demandeur_telephone: '+237669790437',
-          demandeur_adresse: '203 Boulevard de l\'OCAM, Mvog Mbi - Yaoundé',
+          demandeur_adresse: "203 Boulevard de l'OCAM, Mvog Mbi - Yaoundé",
           nom_chantier: 'Distribution Directe',
-          magazinier_nom: `${user?.prenom || ''} ${user?.nom || ''}`.trim() || 'Magazinier Dantela',
+          magazinier_nom:
+            `${user?.prenom || ''} ${user?.nom || ''}`.trim() || 'Magazinier Dantela',
           depot_nom: 'Dépôt Principal Yaoundé',
-          items: []
+          items: [],
         });
       }
     } catch (error) {
       console.error('❌ Erreur API bon de livraison:', error);
-      // Repli en cas d’erreur
       setBonLivraison({
         id: bonId,
         numero_bon: `BL-${new Date().getFullYear()}-0573`,
@@ -157,15 +163,16 @@ const DeliveryNotePage: React.FC = () => {
         demandeur_nom: 'Distribution Directe',
         demandeur_email: 'distribution@dantela.cm',
         demandeur_telephone: '+237669790437',
-        demandeur_adresse: '203 Boulevard de l\'OCAM, Mvog Mbi - Yaoundé',
+        demandeur_adresse: "203 Boulevard de l'OCAM, Mvog Mbi - Yaoundé",
         nom_chantier: 'Distribution Directe',
-        magazinier_nom: `${user?.prenom || ''} ${user?.nom || ''}`.trim() || 'Magazinier Dantela',
+        magazinier_nom:
+          `${user?.prenom || ''} ${user?.nom || ''}`.trim() || 'Magazinier Dantela',
         depot_nom: 'Dépôt Principal Yaoundé',
-        items: []
+        items: [],
       });
     }
   };
-    
+
   const fetchBonLivraison = async () => {
     try {
       setLoading(true);
@@ -174,7 +181,7 @@ const DeliveryNotePage: React.FC = () => {
 
       const response = await fetch(`${API}/demandes/${id}`, {
         headers: {
-          'Authorization': token ? `Bearer ${token}` : '',
+          Authorization: token ? `Bearer ${token}` : '',
           'Content-Type': 'application/json',
         },
       });
@@ -205,7 +212,8 @@ const DeliveryNotePage: React.FC = () => {
         demandeur_telephone: destinataireTelephone,
         demandeur_adresse: destinataireAdresse,
         nom_chantier: demande.nom_chantier || 'Non spécifié',
-        magazinier_nom: `${user?.prenom || ''} ${user?.nom || ''}`.trim() || 'Non spécifié',
+        magazinier_nom:
+        `${user?.prenom || ''} ${user?.nom || ''}`.trim() || 'Non spécifié',
         depot_nom: demande.depot_nom || 'Dépôt Principal',
         items: demande.items || [],
       };
@@ -229,7 +237,7 @@ const DeliveryNotePage: React.FC = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
       </div>
     );
   }
@@ -253,7 +261,7 @@ const DeliveryNotePage: React.FC = () => {
 
   return (
     <>
-      {/* Boutons d'action - Cachés à l'impression */}
+      {/* Barre d’actions (hors impression) */}
       <div className="no-print bg-white shadow-sm border-b border-gray-200 p-4">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <button
@@ -263,7 +271,7 @@ const DeliveryNotePage: React.FC = () => {
             <ArrowLeft className="w-5 h-5" />
             <span>Retour</span>
           </button>
-          
+
           <div className="flex space-x-3">
             <button
               onClick={handlePrint}
@@ -283,49 +291,56 @@ const DeliveryNotePage: React.FC = () => {
         </div>
       </div>
 
-      {/* Document A4 - Format impression EXACT selon Figma */}
+      {/* Document A4 */}
       <div className="min-h-screen bg-gray-100 py-8 print:bg-white print:py-0">
         <div className="delivery-document">
-          
-          {/* EN-TÊTE FIXE - Position absolue */}
+          {/* EN-TÊTE */}
           <div className="document-header">
-            {/* Logo et titre */}
             <div className="header-top">
               <div className="logo-section">
                 <div className="logo-container">
-                  <div className="logo-icon">
-                    <div className="logo-squares">
-                      <div className="square"></div>
-                      <div className="square"></div>
-                      <div className="square"></div>
-                      <div className="square"></div>
-                    </div>
-                  </div>
-                </div>
+  <img
+    src="/dantela.png"
+    alt="DANTELA"
+    className="logo-img"
+    onError={(e) => {
+      (e.currentTarget as HTMLImageElement).style.display = 'none';
+      const pdf = document.getElementById('logo-pdf');
+      if (pdf) pdf.classList.remove('hidden');
+    }}
+  />
+  <object
+    id="logo-pdf"
+    data="/dantela.pdf#page=1&view=Fit"
+    type="application/pdf"
+    className="logo-embed hidden"
+    aria-label="Logo DANTELA PDF"
+  />
+</div>
+
+
                 <div className="company-info">
                   <h1 className="company-name">DANTELA</h1>
-                  <p className="company-tagline">"La Marque de la Construction"</p>
+                  <p className="company-tagline">&quot;La Marque de la Construction&quot;</p>
                 </div>
               </div>
-              
+
               <div className="contact-info">
                 <p>Tél: +237 669 790 437</p>
                 <p>www.dantela.cm</p>
-                <p>203 Bd de l'OCAM, Mvog Mbi</p>
+                <p>203 Bd de l&apos;OCAM, Mvog Mbi</p>
                 <p>Yaoundé, Cameroun</p>
               </div>
             </div>
 
-            {/* Titre principal */}
             <div className="main-title-section">
               <h2 className="main-title">BON DE LIVRAISON</h2>
-              <div className="title-underline"></div>
+              <div className="title-underline" />
             </div>
           </div>
 
-          {/* CONTENU PRINCIPAL - Zone flexible */}
+          {/* CONTENU */}
           <div className="document-content">
-            {/* Informations Client et Détails */}
             <div className="info-sections">
               <div className="client-section">
                 <h3 className="section-title">INFORMATIONS CLIENT</h3>
@@ -365,7 +380,7 @@ const DeliveryNotePage: React.FC = () => {
                     <span className="value">{formatTime(bonLivraison.date_preparation)}</span>
                   </div>
                 </div>
-                
+
                 <div className="treated-by">
                   <h4 className="subsection-title">TRAITÉ PAR</h4>
                   <div className="detail-row">
@@ -380,7 +395,6 @@ const DeliveryNotePage: React.FC = () => {
               </div>
             </div>
 
-            {/* Tableau des matériaux */}
             <div className="materials-section">
               <table className="materials-table">
                 <thead>
@@ -408,519 +422,151 @@ const DeliveryNotePage: React.FC = () => {
             </div>
           </div>
 
-          {/* SIGNATURES FIXES */}
+          {/* SIGNATURES */}
           <div className="signatures-section">
             <div className="signature-row">
               <div className="signature-box">
                 <p className="signature-label">Signature Magazinier:</p>
-                <div className="signature-line"></div>
+                <div className="signature-line" />
                 <p className="signature-date">Date: ___________</p>
               </div>
               <div className="signature-box">
                 <p className="signature-label">Signature Récipiendaire:</p>
-                <div className="signature-line"></div>
+                <div className="signature-line" />
                 <p className="signature-date">Date: ___________</p>
               </div>
               <div className="signature-box">
                 <p className="signature-label">Signature Chef de Chantier:</p>
-                <div className="signature-line"></div>
+                <div className="signature-line" />
                 <p className="signature-date">Date: ___________</p>
               </div>
             </div>
           </div>
 
-          {/* PIED DE PAGE FIXE */}
+          {/* PIED DE PAGE */}
           <div className="document-footer">
             <div className="footer-content">
-              <p className="footer-address">203, Boulevard de l'OCAM,Rue 4.017, B.P:156263 Mvog-Mbi/Yaoundé -CAMEROUN</p>
-              <p className="footer-contact">Site Internet :www.dantela.com Téléphone: 669790437 E-mail: info@dantela.com</p>
+              <p className="footer-address">
+                203, Boulevard de l&apos;OCAM, Rue 4.017, B.P:156263 Mvog-Mbi / Yaoundé - CAMEROUN
+              </p>
+              <p className="footer-contact">
+                Site Internet : www.dantela.com &nbsp;|&nbsp; Téléphone: 669790437 &nbsp;|&nbsp;
+                E-mail: info@dantela.com
+              </p>
             </div>
           </div>
         </div>
       </div>
 
-
-      {/* CSS EXACT selon Figma - Format A4 fixe */}
-      <style jsx>{`
-        /* Document A4 fixe - Dimensions exactes */
+      {/* Styles */}
+      <style>{`
+        /* --- Document A4 fixe --- */
         .delivery-document {
-          width: 210mm;
-          height: 297mm;
-          margin: 0 auto;
-          background: white;
-          position: relative;
-          font-family: 'Arial', sans-serif;
-          font-size: 12px;
-          color: #000;
-          padding: 0;
-          box-sizing: border-box;
-          overflow: hidden;
+          width: 210mm; height: 297mm;
+          margin: 0 auto; background: #fff;
+          position: relative; font-family: Arial, sans-serif;
+          font-size: 12px; color: #000; padding: 0;
+          box-sizing: border-box; overflow: hidden;
         }
 
-        /* EN-TÊTE FIXE - Position absolue */
+        /* --- Header --- */
         .document-header {
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          height: 80mm;
-          padding: 15mm 15mm 0 15mm;
-          background: white;
-          z-index: 10;
+          position: absolute; top: 0; left: 0; right: 0;
+          height: 80mm; padding: 15mm 15mm 0 15mm;
+          background: #fff; z-index: 10;
         }
-
         .header-top {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-start;
-          margin-bottom: 15mm;
+          display: flex; justify-content: space-between;
+          align-items: flex-start; margin-bottom: 15mm;
         }
+        .logo-section { display: flex; align-items: center; gap: 10mm; }
 
-        .logo-section {
-          display: flex;
-          align-items: center;
-          gap: 10mm;
-        }
+        /* Logo container + PDF embed / PNG fallback */
+        .logo-container { width: 25mm; height: 15mm; display: flex; align-items: center; justify-content: center; background: transparent; }
+        .logo-embed, .logo-img { width: 100%; height: 100%; object-fit: contain; }
+        .logo-embed { pointer-events: none; }
 
-        .logo-container {
-          width: 15mm;
-          height: 15mm;
-          background: #1a365d;
-          border-radius: 3mm;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
+        .company-info { margin-left: 5mm; }
+        .company-name { font-size: 24px; font-weight: bold; color: #1a365d; margin: 0; letter-spacing: 2px; }
+        .company-tagline { font-size: 10px; color: #666; margin: 2px 0 0 0; font-style: italic; }
 
-        .logo-icon {
-          color: white;
-          font-weight: bold;
-        }
+        .contact-info { text-align: right; font-size: 9px; color: #333; line-height: 1.3; }
+        .contact-info p { margin: 1px 0; }
 
-        .logo-squares {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 1mm;
-          width: 8mm;
-          height: 8mm;
-        }
+        .main-title-section { text-align: center; margin-top: 10mm; }
+        .main-title { font-size: 18px; font-weight: bold; color: #1a365d; margin: 0; letter-spacing: 1px; }
+        .title-underline { width: 120mm; height: 2px; background: #1a365d; margin: 5mm auto 0; }
 
-        .square {
-          background: white;
-          border-radius: 0.5mm;
-        }
+        /* --- Contenu --- */
+        .document-content { position: absolute; top: 80mm; left: 15mm; right: 15mm; bottom: 60mm; overflow: hidden; }
+        .info-sections { display: grid; grid-template-columns: 1fr 1fr; gap: 10mm; margin-bottom: 8mm; }
+        .client-section, .bon-details-section { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 3mm; padding: 5mm; }
+        .section-title { font-size: 11px; font-weight: bold; color: #1a365d; margin: 0 0 3mm 0; text-transform: uppercase; letter-spacing: .5px; }
+        .subsection-title { font-size: 9px; font-weight: bold; color: #1a365d; margin: 3mm 0 2mm 0; text-transform: uppercase; }
+        .client-details, .bon-details { font-size: 9px; }
+        .detail-row { display: flex; margin-bottom: 1.5mm; }
+        .label { font-weight: 600; color: #333; min-width: 25mm; }
+        .value { color: #000; flex: 1; }
 
-        .company-info {
-          margin-left: 5mm;
-        }
+        /* --- Tableau --- */
+        .materials-section { margin-top: 5mm; }
+        .materials-table { width: 100%; border-collapse: collapse; border: 2px solid #000; }
+        .table-header { background: #20b2aa; color: #fff; }
+        .table-header th { padding: 3mm 2mm; text-align: center; font-weight: bold; font-size: 11px; border: 1px solid #000; }
+        .col-number { width: 15mm; } .col-quantity { width: 20mm; } .col-unit { width: 20mm; }
+        .table-body { background: #f5f5f5; }
+        .table-row { height: 8mm; border-bottom: 1px solid #ccc; }
+        .table-row td { padding: 1mm 2mm; border-right: 1px solid #ccc; font-size: 9px; vertical-align: middle; }
+        .cell-number, .cell-quantity, .cell-unit { text-align: center; }
+        .cell-number, .cell-quantity { font-weight: bold; }
 
-        .company-name {
-          font-size: 24px;
-          font-weight: bold;
-          color: #1a365d;
-          margin: 0;
-          letter-spacing: 2px;
-        }
+        /* --- Signatures --- */
+        .signatures-section { position: absolute; bottom: 25mm; left: 15mm; right: 15mm; height: 20mm; }
+        .signature-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10mm; height: 100%; }
+        .signature-box { text-align: center; }
+        .signature-label { font-size: 9px; font-weight: 600; color: #333; margin: 0 0 3mm 0; }
+        .signature-line { border-bottom: 1px solid #000; height: 10mm; margin-bottom: 2mm; }
+        .signature-date { font-size: 8px; color: #666; margin: 0; }
 
-        .company-tagline {
-          font-size: 10px;
-          color: #666;
-          margin: 2px 0 0 0;
-          font-style: italic;
-        }
+        /* --- Footer --- */
+        .document-footer { position: absolute; bottom: 0; left: 0; right: 0; height: 25mm; background: #f8f9fa; border-top: 2px solid #1a365d; display: flex; align-items: center; justify-content: center; padding: 0 15mm; }
+        .footer-content { text-align: center; }
+        .footer-address { font-size: 9px; font-weight: 600; color: #333; margin: 0 0 1mm 0; }
+        .footer-contact { font-size: 8px; color: #666; margin: 0; }
 
-        .contact-info {
-          text-align: right;
-          font-size: 9px;
-          color: #333;
-          line-height: 1.3;
-        }
-
-        .contact-info p {
-          margin: 1px 0;
-        }
-
-        .main-title-section {
-          text-align: center;
-          margin-top: 10mm;
-        }
-
-        .main-title {
-          font-size: 18px;
-          font-weight: bold;
-          color: #1a365d;
-          margin: 0;
-          letter-spacing: 1px;
-        }
-
-        .title-underline {
-          width: 120mm;
-          height: 2px;
-          background: #1a365d;
-          margin: 5mm auto 0;
-        }
-
-        /* CONTENU PRINCIPAL - Zone flexible entre header et footer */
-        .document-content {
-          position: absolute;
-          top: 80mm;
-          left: 15mm;
-          right: 15mm;
-          bottom: 60mm;
-          overflow: hidden;
-        }
-
-        .info-sections {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 10mm;
-          margin-bottom: 8mm;
-        }
-
-        .client-section, .bon-details-section {
-          background: #f8f9fa;
-          border: 1px solid #dee2e6;
-          border-radius: 3mm;
-          padding: 5mm;
-        }
-
-        .section-title {
-          font-size: 11px;
-          font-weight: bold;
-          color: #1a365d;
-          margin: 0 0 3mm 0;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-        }
-
-        .subsection-title {
-          font-size: 9px;
-          font-weight: bold;
-          color: #1a365d;
-          margin: 3mm 0 2mm 0;
-          text-transform: uppercase;
-        }
-
-        .client-details, .bon-details {
-          font-size: 9px;
-        }
-
-        .detail-row {
-          display: flex;
-          margin-bottom: 1.5mm;
-        }
-
-        .label {
-          font-weight: 600;
-          color: #333;
-          min-width: 25mm;
-        }
-
-        .value {
-          color: #000;
-          flex: 1;
-        }
-
-        /* TABLEAU - Exactement comme Figma */
-        .materials-section {
-          margin-top: 5mm;
-        }
-
-        .materials-table {
-          width: 100%;
-          border-collapse: collapse;
-          border: 2px solid #000;
-        }
-
-        .table-header {
-          background: #20b2aa;
-          color: white;
-        }
-
-        .table-header th {
-          padding: 3mm 2mm;
-          text-align: center;
-          font-weight: bold;
-          font-size: 11px;
-          border: 1px solid #000;
-        }
-
-        .col-number {
-          width: 15mm;
-        }
-
-        .col-product {
-          width: auto;
-        }
-
-        .col-quantity {
-          width: 20mm;
-        }
-
-        .col-unit {
-          width: 20mm;
-        }
-
-        .table-body {
-          background: #f5f5f5;
-        }
-
-        .table-row {
-          height: 8mm;
-          border-bottom: 1px solid #ccc;
-        }
-
-        .table-row td {
-          padding: 1mm 2mm;
-          border-right: 1px solid #ccc;
-          font-size: 9px;
-          vertical-align: middle;
-        }
-
-        .cell-number {
-          text-align: center;
-          font-weight: bold;
-        }
-
-        .cell-product {
-          text-align: left;
-        }
-
-        .cell-quantity {
-          text-align: center;
-          font-weight: bold;
-        }
-
-        .cell-unit {
-          text-align: center;
-        }
-
-        /* SIGNATURES FIXES - Position absolue */
-        .signatures-section {
-          position: absolute;
-          bottom: 25mm;
-          left: 15mm;
-          right: 15mm;
-          height: 20mm;
-        }
-
-        .signature-row {
-          display: grid;
-          grid-template-columns: 1fr 1fr 1fr;
-          gap: 10mm;
-          height: 100%;
-        }
-
-        .signature-box {
-          text-align: center;
-        }
-
-        .signature-label {
-          font-size: 9px;
-          font-weight: 600;
-          color: #333;
-          margin: 0 0 3mm 0;
-        }
-
-        .signature-line {
-          border-bottom: 1px solid #000;
-          height: 10mm;
-          margin-bottom: 2mm;
-        }
-
-        .signature-date {
-          font-size: 8px;
-          color: #666;
-          margin: 0;
-        }
-
-        /* PIED DE PAGE FIXE - Position absolue */
-        .document-footer {
-          position: absolute;
-          bottom: 0;
-          left: 0;
-          right: 0;
-          height: 25mm;
-          background: #f8f9fa;
-          border-top: 2px solid #1a365d;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 0 15mm;
-        }
-
-        .footer-content {
-          text-align: center;
-        }
-
-        .footer-address {
-          font-size: 9px;
-          font-weight: 600;
-          color: #333;
-          margin: 0 0 1mm 0;
-        }
-
-        .footer-contact {
-          font-size: 8px;
-          color: #666;
-          margin: 0;
-        }
-
-        /* STYLES D'IMPRESSION - Format A4 exact */
+        /* --- Impression --- */
         @media print {
-          .no-print {
-            display: none !important;
-          }
-
-          * {
-            -webkit-print-color-adjust: exact !important;
-            color-adjust: exact !important;
-            print-color-adjust: exact !important;
-          }
-
-          body {
-            margin: 0 !important;
-            padding: 0 !important;
-            background: white !important;
-          }
-
-          .delivery-document {
-            width: 210mm !important;
-            height: 297mm !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            position: relative !important;
-            page-break-after: avoid !important;
-            page-break-inside: avoid !important;
-            overflow: hidden !important;
-            background: white !important;
-            box-shadow: none !important;
-            border: none !important;
-          }
-
-          /* EN-TÊTE - Position fixe */
-          .document-header {
-            position: absolute !important;
-            top: 0 !important;
-            left: 0 !important;
-            right: 0 !important;
-            height: 80mm !important;
-            padding: 15mm 15mm 0 15mm !important;
-            background: white !important;
-            page-break-inside: avoid !important;
-          }
-
-          .company-name {
-            color: #1a365d !important;
-            font-size: 24px !important;
-          }
-
-          .main-title {
-            color: #1a365d !important;
-            font-size: 18px !important;
-          }
-
-          .title-underline {
-            background: #1a365d !important;
-          }
-
-          /* CONTENU - Zone flexible */
-          .document-content {
-            position: absolute !important;
-            top: 80mm !important;
-            left: 15mm !important;
-            right: 15mm !important;
-            bottom: 60mm !important;
-            overflow: hidden !important;
-            page-break-inside: avoid !important;
-          }
-
-          .client-section, .bon-details-section {
-            background: #f8f9fa !important;
-            border: 1px solid #dee2e6 !important;
-          }
-
-          .section-title {
-            color: #1a365d !important;
-          }
-
-          .subsection-title {
-            color: #1a365d !important;
-          }
-
-          /* TABLEAU - Couleurs exactes Figma */
-          .table-header {
-            background: #20b2aa !important;
-            color: white !important;
-          }
-
-          .table-header th {
-            background: #20b2aa !important;
-            color: white !important;
-            border: 1px solid #000 !important;
-          }
-
-          .table-body {
-            background: #f5f5f5 !important;
-          }
-
-          .table-row td {
-            border-right: 1px solid #ccc !important;
-            border-bottom: 1px solid #ccc !important;
-          }
-
-          /* SIGNATURES - Position fixe */
-          .signatures-section {
-            position: absolute !important;
-            bottom: 25mm !important;
-            left: 15mm !important;
-            right: 15mm !important;
-            height: 20mm !important;
-            page-break-inside: avoid !important;
-          }
-
-          .signature-line {
-            border-bottom: 1px solid #000 !important;
-          }
-
-          /* PIED DE PAGE - Position fixe */
-          .document-footer {
-            position: absolute !important;
-            bottom: 0 !important;
-            left: 0 !important;
-            right: 0 !important;
-            height: 25mm !important;
-            background: #f8f9fa !important;
-            border-top: 2px solid #1a365d !important;
-            page-break-inside: avoid !important;
-          }
-
-          @page {
-            size: A4;
-            margin: 0;
-          }
+          .no-print { display: none !important; }
+          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+          body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
+          .delivery-document { width: 210mm !important; height: 297mm !important; margin: 0 !important; padding: 0 !important; position: relative !important; page-break-after: avoid !important; page-break-inside: avoid !important; overflow: hidden !important; background: #fff !important; box-shadow: none !important; border: none !important; }
+          .document-header { position: absolute !important; top: 0 !important; left: 0 !important; right: 0 !important; height: 80mm !important; padding: 15mm 15mm 0 15mm !important; background: #fff !important; page-break-inside: avoid !important; }
+          .company-name { color: #1a365d !important; font-size: 24px !important; }
+          .main-title { color: #1a365d !important; font-size: 18px !important; }
+          .title-underline { background: #1a365d !important; }
+          .document-content { position: absolute !important; top: 80mm !important; left: 15mm !important; right: 15mm !important; bottom: 60mm !important; overflow: hidden !important; page-break-inside: avoid !important; }
+          .client-section, .bon-details-section { background: #f8f9fa !important; border: 1px solid #dee2e6 !important; }
+          .section-title, .subsection-title { color: #1a365d !important; }
+          .table-header th { background: #20b2aa !important; color: #fff !important; border: 1px solid #000 !important; }
+          .table-body { background: #f5f5f5 !important; }
+          .table-row td { border-right: 1px solid #ccc !important; border-bottom: 1px solid #ccc !important; }
+          .signatures-section { position: absolute !important; bottom: 25mm !important; left: 15mm !important; right: 15mm !important; height: 20mm !important; page-break-inside: avoid !important; }
+          .signature-line { border-bottom: 1px solid #000 !important; }
+          .document-footer { position: absolute !important; bottom: 0 !important; left: 0 !important; right: 0 !important; height: 25mm !important; background: #f8f9fa !important; border-top: 2px solid #1a365d !important; page-break-inside: avoid !important; }
 
           /* Forcer une seule page */
-          html, body {
-            height: 297mm !important;
-            overflow: hidden !important;
-          }
+          @page { size: A4; margin: 0; }
+          html, body, .min-h-screen { height: 297mm !important; overflow: hidden !important; }
 
-          .min-h-screen {
-            height: 297mm !important;
-            overflow: hidden !important;
-          }
-
-          .bg-gray-100 {
-            background: white !important;
-            padding: 0 !important;
-          }
+          /* Si le PDF du logo ne s'imprime pas, force l'image PNG */
+          .logo-embed { display: none !important; }
+          .logo-img { display: block !important; }
         }
 
-        /* Responsive pour écran */
+        /* --- Écran --- */
         @media screen {
           .delivery-document {
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,.1);
             border: 1px solid #e5e7eb;
             margin: 20px auto;
           }
