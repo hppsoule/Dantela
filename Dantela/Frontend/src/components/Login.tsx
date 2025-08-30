@@ -30,124 +30,109 @@ const Login: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-800 flex items-center justify-center p-4">
-      <div className="w-full max-w-6xl bg-white rounded-2xl shadow-2xl overflow-hidden">
-        <div className="flex flex-col lg:flex-row">
-          {/* Left Panel - Login Form */}
-          <div className="lg:w-1/2 p-8 lg:p-12">
-            <div className="max-w-md mx-auto">
-              {/* Logo */}
-              <div className="flex items-center justify-center mb-8">
-                <div className="bg-blue-600 p-3 rounded-xl">
-                  <Building2 className="w-8 h-8 text-white" />
-                </div>
-                <div className="ml-3">
-                  <h1 className="text-2xl font-bold text-gray-900">DANTELA</h1>
-                  <p className="text-sm text-gray-600">"La Marque de la Construction"</p>
-                </div>
-              </div>
-
-              <div className="text-center mb-8">
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">Welcome back</h2>
-                <p className="text-gray-600">Please enter your details</p>
-              </div>
-
-              <form onSubmit={handleSubmit} className="space-y-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Email:
-                  </label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Entrez votre email"
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Password:
-                  </label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Entrez votre mot de passe"
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    >
-                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={rememberMe}
-                      onChange={(e) => setRememberMe(e.target.checked)}
-                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                    />
-                    <span className="ml-2 text-sm text-gray-600">Remember for 30 days</span>
-                  </label>
-                  <button
-                    type="button"
-                    className="text-sm text-blue-600 hover:text-blue-800"
-                  >
-                    Mot de passe oublié
-                  </button>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="w-full bg-gradient-to-r from-blue-600 to-green-500 text-white py-3 rounded-lg font-semibold hover:from-blue-700 hover:to-green-600 transition-all duration-200 disabled:opacity-50"
-                >
-                  {isLoading ? 'Connexion...' : 'connecter'}
-                </button>
-              </form>
-
-              <div className="mt-6 text-center">
-                <p className="text-gray-600">
-                  Vous avez pas de connecter?{' '}
-                  <button
-                    onClick={() => setShowRegister(true)}
-                    className="text-green-600 hover:text-green-800 font-medium"
-                  >
-                    Créer compte
-                  </button>
-                </p>
-              </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-800 to-teal-800 flex items-center justify-center p-4">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden">
+        <div className="flex flex-col p-8">
+          {/* Logo */}
+          <div className="flex items-center justify-center mb-8">
+            <div className="bg-teal-600 p-3 rounded-xl">
+              <Building2 className="w-8 h-8 text-white" />
+            </div>
+            <div className="ml-3">
+              <h1 className="text-2xl font-bold text-gray-900">DANTELA</h1>
+              <p className="text-sm text-gray-600">"La Marque de la Construction"</p>
             </div>
           </div>
 
-          {/* Right Panel - Image */}
-          <div className="lg:w-1/2 bg-gradient-to-br from-blue-600 to-blue-800 p-8 lg:p-12 flex items-center justify-center">
-            <div className="text-center text-white">
-              <img
-                src="https://images.pexels.com/photos/1166643/pexels-photo-1166643.jpeg?auto=compress&cs=tinysrgb&w=800"
-                alt="Construction moderne"
-                className="w-full max-w-md rounded-xl shadow-2xl mb-8"
-              />
-              <h3 className="text-3xl font-bold mb-4">DANTELA</h3>
-              <p className="text-blue-100 text-lg">
-                Système de gestion des dépôts et matériaux de construction
-              </p>
+          <div className="text-center mb-8">
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Welcome back</h2>
+            <p className="text-gray-600">Please enter your details</p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Email Input */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Email:
+              </label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                  placeholder="Enter your email"
+                  required
+                />
+              </div>
             </div>
+
+            {/* Password Input */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Password:
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                  placeholder="Enter your password"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
+            </div>
+
+            {/* Remember Me Checkbox */}
+            <div className="flex items-center justify-between">
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="w-4 h-4 text-teal-600 border-gray-300 rounded focus:ring-teal-500"
+                />
+                <span className="ml-2 text-sm text-gray-600">Remember for 30 days</span>
+              </label>
+              <button
+                type="button"
+                className="text-sm text-teal-600 hover:text-teal-800"
+              >
+                Forgot password?
+              </button>
+            </div>
+
+            {/* Submit Button */}
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full bg-gradient-to-r from-teal-600 to-teal-500 text-white py-3 rounded-lg font-semibold hover:from-teal-700 hover:to-teal-600 transition-all duration-200 disabled:opacity-50"
+            >
+              {isLoading ? 'Logging in...' : 'Login'}
+            </button>
+          </form>
+
+          {/* Register Redirect */}
+          <div className="mt-6 text-center">
+            <p className="text-gray-600">
+              Don&apos;t have an account?{' '}
+              <button
+                onClick={() => setShowRegister(true)}
+                className="text-teal-600 hover:text-teal-800 font-medium"
+              >
+                Create an account
+              </button>
+            </p>
           </div>
         </div>
       </div>
@@ -184,14 +169,14 @@ const RegisterForm: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-800 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-teal-800 flex items-center justify-center p-4">
       <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl p-8">
         <div className="text-center mb-8">
-          <div className="bg-blue-600 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+          <div className="bg-teal-600 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
             <Building2 className="w-8 h-8 text-white" />
           </div>
           <h2 className="text-3xl font-bold text-gray-900 mb-2">Créer un compte</h2>
-          <p className="text-gray-600">Rejoignez l'équipe Dantela</p>
+          <p className="text-gray-600">Rejoignez l&apos;équipe Dantela</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -206,13 +191,13 @@ const RegisterForm: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 onClick={() => setFormData({ ...formData, accountType: 'magazinier' })}
                 className={`p-4 border-2 rounded-lg text-left transition-all ${
                   formData.accountType === 'magazinier'
-                    ? 'border-blue-500 bg-blue-50'
+                    ? 'border-teal-500 bg-teal-50'
                     : 'border-gray-200 hover:border-gray-300'
                 }`}
               >
                 <div className="flex items-center space-x-3">
-                  <div className="bg-blue-100 p-2 rounded-lg">
-                    <Building2 className="w-5 h-5 text-blue-600" />
+                  <div className="bg-teal-100 p-2 rounded-lg">
+                    <Building2 className="w-5 h-5 text-teal-600" />
                   </div>
                   <div>
                     <p className="font-semibold text-gray-900">Magazinier</p>
@@ -226,13 +211,13 @@ const RegisterForm: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 onClick={() => setFormData({ ...formData, accountType: 'chef_chantier' })}
                 className={`p-4 border-2 rounded-lg text-left transition-all ${
                   formData.accountType === 'chef_chantier'
-                    ? 'border-green-500 bg-green-50'
+                    ? 'border-teal-500 bg-teal-50'
                     : 'border-gray-200 hover:border-gray-300'
                 }`}
               >
                 <div className="flex items-center space-x-3">
-                  <div className="bg-green-100 p-2 rounded-lg">
-                    <User className="w-5 h-5 text-green-600" />
+                  <div className="bg-teal-100 p-2 rounded-lg">
+                    <User className="w-5 h-5 text-teal-600" />
                   </div>
                   <div>
                     <p className="font-semibold text-gray-900">Chef de chantier</p>
@@ -254,7 +239,7 @@ const RegisterForm: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 name="nom"
                 value={formData.nom}
                 onChange={handleInputChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                 placeholder="Votre nom"
                 required
               />
@@ -268,7 +253,7 @@ const RegisterForm: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 name="prenom"
                 value={formData.prenom}
                 onChange={handleInputChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                 placeholder="Votre prénom"
                 required
               />
@@ -284,7 +269,7 @@ const RegisterForm: React.FC<{ onBack: () => void }> = ({ onBack }) => {
               name="email"
               value={formData.email}
               onChange={handleInputChange}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
               placeholder="votre@email.com"
               required
             />
@@ -299,7 +284,7 @@ const RegisterForm: React.FC<{ onBack: () => void }> = ({ onBack }) => {
               name="telephone"
               value={formData.telephone}
               onChange={handleInputChange}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
               placeholder="+237 6XX XXX XXX"
             />
           </div>
@@ -313,7 +298,7 @@ const RegisterForm: React.FC<{ onBack: () => void }> = ({ onBack }) => {
               value={formData.adresse}
               onChange={handleInputChange}
               rows={3}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
               placeholder="Votre adresse complète"
             />
           </div>
@@ -328,7 +313,7 @@ const RegisterForm: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 name="nomChantier"
                 value={formData.nomChantier}
                 onChange={handleInputChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                 placeholder="Nom du chantier"
                 required
               />
@@ -346,7 +331,7 @@ const RegisterForm: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                   name="password"
                   value={formData.password}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                   placeholder="Mot de passe"
                   required
                 />
@@ -369,7 +354,7 @@ const RegisterForm: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                   name="confirmPassword"
                   value={formData.confirmPassword}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                   placeholder="Confirmer le mot de passe"
                   required
                 />
@@ -386,7 +371,7 @@ const RegisterForm: React.FC<{ onBack: () => void }> = ({ onBack }) => {
 
           <button
             type="submit"
-            className="w-full bg-gradient-to-r from-blue-600 to-green-500 text-white py-3 rounded-lg font-semibold hover:from-blue-700 hover:to-green-600 transition-all duration-200"
+            className="w-full bg-gradient-to-r from-teal-600 to-teal-500 text-white py-3 rounded-lg font-semibold hover:from-teal-700 hover:to-teal-600 transition-all duration-200"
           >
             Créer mon compte
           </button>
@@ -397,7 +382,7 @@ const RegisterForm: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             Déjà un compte ?{' '}
             <button
               onClick={onBack}
-              className="text-blue-600 hover:text-blue-800 font-medium"
+              className="text-teal-600 hover:text-teal-800 font-medium"
             >
               Se connecter ici
             </button>
