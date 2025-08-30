@@ -223,11 +223,11 @@ const OrderManagementPage: React.FC = () => {
   // en haut : tu as déjà useNavigate()
 const handleProcessOrder = async (demandeId: string) => {
   try {
-    setError('');
+    setError(''); // Réinitialiser les erreurs
 
     const token = localStorage.getItem('token');
     if (!token) {
-      setError('Session expirée');
+      setError('Session expirée. Veuillez vous reconnecter.');
       return;
     }
 
@@ -238,32 +238,32 @@ const handleProcessOrder = async (demandeId: string) => {
     });
 
     if (!response.ok) {
-      const txt = await response.text().catch(() => '');
-      throw new Error(`Erreur HTTP: ${response.status} ${txt}`);
+      const errorText = await response.text();
+      throw new Error(`Erreur HTTP: ${response.status} ${errorText}`);
     }
 
     const data = await response.json();
 
     if (data.success && data.bon_livraison) {
-      const bonId =
-        data.bon_livraison.id || data.bon_livraison.bon_id || data.bon_livraison?.bon?.id;
+      const bonId = data.bon_livraison.id || data.bon_livraison.bon_id;
 
-      // ✅ Ouvre ta page imprimable front (adaptE le chemin à ta route réelle)
+      // Rediriger vers la page de bon de livraison avec l'ID
       navigate(`/delivery-note/${bonId}`);
 
-      // (optionnel) lancer l’impression automatique après chargement
+      // Optionnel : imprimer automatiquement après la redirection
       // setTimeout(() => window.print(), 500);
 
-      // on recharge la liste en arrière-plan
+      // Recharge la liste des demandes après la génération du bon
       fetchDemandes();
-      return;
+    } else {
+      throw new Error(data.message || 'Erreur lors de la génération du bon');
     }
-    throw new Error(data.message || 'Erreur lors de la génération du bon');
   } catch (err) {
-    console.error('❌ Erreur traitement commande:', err);
+    console.error('❌ Erreur lors du traitement de la commande:', err);
     alert(`❌ ${err instanceof Error ? err.message : 'Erreur lors du traitement'}`);
   }
 };
+
 
 
   // Valider
