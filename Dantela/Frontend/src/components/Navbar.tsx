@@ -47,14 +47,21 @@ const Navbar: React.FC = () => {
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
           <Link to="/" className="flex items-center space-x-3">
-            <div className="bg-blue-600 p-2 rounded-lg">
-              <Building2 className="w-8 h-8 text-white" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-slate-800">DANTELA</h1>
-              <p className="text-xs text-blue-600">&quot;La Marque de la Construction&quot;</p>
-            </div>
-          </Link>
+  {/* Logo DANTELA depuis /public */}
+  <img
+    src="/dantela.png"
+    alt="DANTELA"
+    className="h-10 w-auto object-contain select-none"
+    draggable={false}
+  />
+
+  {/* Garde le texte (masqué en très petit écran pour éviter le doublon) */}
+  <div className="hidden sm:block leading-tight">
+    <h1 className="text-xl font-bold text-slate-800">DANTELA</h1>
+    <p className="text-xs text-blue-600">"La Marque de la Construction"</p>
+  </div>
+</Link>
+
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center space-x-8">
