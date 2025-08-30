@@ -55,19 +55,26 @@ const LoginPage: React.FC = () => {
           <div className="lg:w-1/2 p-8 lg:p-12">
             <div className="max-w-md mx-auto">
               {/* Logo */}
-              <div className="flex items-center justify-center mb-8">
-                <div className="bg-blue-600 p-3 rounded-xl">
-                  <Building2 className="w-8 h-8 text-white" />
-                </div>
-                <div className="ml-3">
-                  <h1 className="text-2xl font-bold text-gray-900">DANTELA</h1>
-                  <p className="text-sm text-gray-600">
-                    {language === 'fr' ? '"La Marque de la Construction"' : 
-                     language === 'en' ? '"The Construction Brand"' : 
-                     '"İnşaat Markası"'}
-                  </p>
-                </div>
-              </div>
+<div className="flex items-center justify-center mb-8">
+  <div className="p-0">
+    <img
+      src="/dantela.png"            // ← placé dans Dantela/Frontend/public
+      alt="Logo DANTELA"
+      className="h-10 w-auto"
+      loading="eager"
+      decoding="async"
+    />
+  </div>
+  <div className="ml-3">
+    <h1 className="text-2xl font-bold text-gray-900">DANTELA</h1>
+    <p className="text-sm text-gray-600">
+      {language === 'fr' ? '"La Marque de la Construction"' :
+       language === 'en' ? '"The Construction Brand"' :
+       '"İnşaat Markası"'}
+    </p>
+  </div>
+</div>
+
 
               {/* Sélecteur de langue */}
               <div className="flex justify-center mb-6">
