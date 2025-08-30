@@ -89,16 +89,21 @@ const HomePage: React.FC = () => {
               </div>
             </div>
             <div className="relative">
-              <img
-                src="https://images.pexels.com/photos/1166643/pexels-photo-1166643.jpeg?auto=compress&cs=tinysrgb&w=800"
-                alt="Construction moderne Dantela"
-                className="rounded-2xl shadow-2xl"
-              />
-              <div className="absolute -bottom-6 -left-6 bg-white text-slate-900 p-6 rounded-xl shadow-xl">
-                <p className="text-2xl font-bold text-blue-600">2015</p>
-                <p className="text-sm font-medium">{language === 'fr' ? 'Années d\'expérience' : t('home.stats.experience')}</p>
-              </div>
-            </div>
+  <img
+    src="/soule.jpeg"                 // ← fichier dans Frontend/public
+    alt="Chantier moderne Dantela"
+    className="rounded-2xl shadow-2xl w-full h-auto"
+    decoding="async"
+    // loading="lazy" // (optionnel) évite si l’image est au-dessus de la ligne de flottaison
+  />
+  <div className="absolute -bottom-6 -left-6 bg-white text-slate-900 p-6 rounded-xl shadow-xl">
+    <p className="text-2xl font-bold text-blue-600">2015</p>
+    <p className="text-sm font-medium">
+      {language === 'fr' ? "Années d'expérience" : t('home.stats.experience')}
+    </p>
+  </div>
+</div>
+
           </div>
         </div>
       </section>
