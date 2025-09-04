@@ -27,6 +27,15 @@ export const useAuth = () => {
   return context;
 };
 
+// Utilitaire: parse JSON en sécurité (réponses vides/HTML)
+async function safeJson(res: Response) {
+  try {
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -46,51 +55,83 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const login = async (email: string, password: string) => {
+    // 1) Normaliser les identifiants
+    const body = {
+      email: String(email || '').trim().toLowerCase(),
+      password: String(password || '')
+    };
+
+    // 2) Timeout (ex: 15s)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+    let res: Response;
     try {
-      const res = await fetch(`${API_BASE}/auth/login`, {
+      res = await fetch(`${API_BASE}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify(body),
+        signal: controller.signal
       });
-
-      if (!res.ok) {
-        // Essaye de lire une réponse JSON, sinon remonte un message générique
-        let msg = 'Erreur de connexion';
-        try {
-          const j = await res.json();
-          msg = j.message || msg;
-        } catch {}
-        throw new Error(msg);
-      }
-
-      const data = await res.json();
-      if (!data.success) throw new Error(data.message || 'Erreur de connexion');
-
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
-      setUser(data.user);
-    } catch (err) {
-      console.error('Erreur de connexion:', err);
-      throw err;
+    } catch {
+      clearTimeout(timeoutId);
+      throw new Error("Impossible de joindre le serveur d'authentification");
+    } finally {
+      clearTimeout(timeoutId);
     }
+
+    const payload = await safeJson(res);
+
+    // 3) Erreurs HTTP → remonter le vrai message serveur
+    if (!res.ok) {
+      const serverMsg =
+        payload?.message ||
+        (res.status === 401
+          ? 'Identifiants incorrects'
+          : res.status === 403
+          ? 'Rôle non autorisé'
+          : `HTTP ${res.status} ${res.statusText}`);
+      throw new Error(serverMsg);
+    }
+
+    // 4) Accepter différents formats de payload
+    const token = payload?.token ?? payload?.data?.token;
+    const userObj = payload?.user ?? payload?.data?.user;
+
+    if (!token || !userObj) {
+      throw new Error("Réponse d'authentification invalide");
+    }
+
+    // 5) Persistance + state
+    localStorage.setItem('token', token);
+    localStorage.setItem('user', JSON.stringify(userObj));
+    setUser(userObj as User);
   };
 
   const register = async (userData: any) => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+    let res: Response;
     try {
-      const res = await fetch(`${API_BASE}/auth/register`, {
+      res = await fetch(`${API_BASE}/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(userData),
+        signal: controller.signal
       });
-
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.message || "Erreur lors de l'inscription");
-
-      return data;
-    } catch (err) {
-      console.error("Erreur d'inscription:", err);
-      throw err;
+    } catch {
+      clearTimeout(timeoutId);
+      throw new Error("Impossible de joindre le serveur d'inscription");
+    } finally {
+      clearTimeout(timeoutId);
     }
+
+    const data = await safeJson(res);
+    if (!res.ok) {
+      throw new Error(data?.message || "Erreur lors de l'inscription");
+    }
+    return data;
   };
 
   const logout = () => {
