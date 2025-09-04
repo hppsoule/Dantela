@@ -1,31 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Package, 
-  Plus, 
-  Minus, 
-  Search, 
-  User, 
+import React, { useEffect, useState } from 'react';
+import {
+  Package,
+  Plus,
+  Minus,
+  Search,
+  User,
   Building2,
   Truck,
   ArrowUp,
   ArrowDown,
-  Clock,
-  CheckCircle,
-  AlertTriangle,
-  Printer,
   RefreshCw,
-  ShoppingCart,
   X,
   Eye,
-  Calendar,
-  FileText,
-  Activity,
-  TrendingUp,
-  TrendingDown,
-  Star,
-  Target,
-  Award,
-  Zap
+  Activity
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -48,6 +35,13 @@ interface Materiau {
   image_url?: string;
 }
 
+interface NewMateriauPayload {
+  nom: string;
+  code_produit?: string;
+  unite?: string;
+  image_url?: string;
+}
+
 interface ChefChantier {
   id: string;
   nom: string;
@@ -64,7 +58,7 @@ interface CartItem {
 
 interface MouvementStock {
   id: string;
-  type_mouvement: string;
+  type_mouvement: 'entree' | 'sortie';
   quantite: number;
   stock_avant: number;
   stock_apres: number;
@@ -77,12 +71,14 @@ interface MouvementStock {
   created_at: string;
 }
 
+const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
+
 const DirectDistributionPage: React.FC = () => {
   const { user } = useAuth();
   const { language } = useLanguage();
   const navigate = useNavigate();
   const [, forceUpdate] = useState({});
-  
+
   // États principaux
   const [activeTab, setActiveTab] = useState<'sortie' | 'entree' | 'historique'>('sortie');
   const [materiaux, setMateriaux] = useState<Materiau[]>([]);
@@ -90,7 +86,7 @@ const DirectDistributionPage: React.FC = () => {
   const [mouvements, setMouvements] = useState<MouvementStock[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  
+
   // Panier pour sorties
   const [cart, setCart] = useState<CartItem[]>([]);
   const [destinataire, setDestinataire] = useState({
@@ -102,7 +98,7 @@ const DirectDistributionPage: React.FC = () => {
     nom_chantier_custom: ''
   });
   const [commentaire, setCommentaire] = useState('');
-  
+
   // Formulaire entrée
   const [entreeForm, setEntreeForm] = useState({
     materiau_id: '',
@@ -112,11 +108,20 @@ const DirectDistributionPage: React.FC = () => {
     motif: 'Réception fournisseur',
     description: ''
   });
-  
+
+  // Création de nouveau matériau (entrée)
+  const [isNewMateriau, setIsNewMateriau] = useState(false);
+  const [newMateriau, setNewMateriau] = useState<NewMateriauPayload>({
+    nom: '',
+    code_produit: '',
+    unite: 'pcs',
+    image_url: ''
+  });
+
   // Filtres
   const [searchTerm, setSearchTerm] = useState('');
   const [showFilters, setShowFilters] = useState(false);
-  
+
   // États UI
   const [submitting, setSubmitting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -126,7 +131,6 @@ const DirectDistributionPage: React.FC = () => {
     const handleLanguageChange = () => {
       forceUpdate({});
     };
-    
     window.addEventListener('languageChanged', handleLanguageChange);
     return () => window.removeEventListener('languageChanged', handleLanguageChange);
   }, []);
@@ -139,7 +143,7 @@ const DirectDistributionPage: React.FC = () => {
     try {
       setLoading(true);
       setError('');
-      
+
       const token = localStorage.getItem('token');
       if (!token) {
         setError('Session expirée');
@@ -147,11 +151,10 @@ const DirectDistributionPage: React.FC = () => {
       }
 
       const headers = {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
       };
 
-      // Récupérer les données en parallèle
       const [materiauxRes, chefsRes, mouvementsRes] = await Promise.all([
         fetch(`${API_BASE}/materiaux`, { headers }),
         fetch(`${API_BASE}/admin/chefs-chantier`, { headers }),
@@ -172,9 +175,8 @@ const DirectDistributionPage: React.FC = () => {
         const mouvementsData = await mouvementsRes.json();
         setMouvements(mouvementsData.mouvements || []);
       }
-
-    } catch (error) {
-      console.error('Erreur lors du chargement:', error);
+    } catch (e) {
+      console.error('Erreur lors du chargement:', e);
       setError('Erreur de connexion');
     } finally {
       setLoading(false);
@@ -189,57 +191,48 @@ const DirectDistributionPage: React.FC = () => {
 
   // Gestion du panier
   const addToCart = (materiau: Materiau) => {
-    setCart(prevCart => {
-      const existingItem = prevCart.find(item => item.materiau.id === materiau.id);
-      if (existingItem) {
-        const newQuantity = existingItem.quantite + 1;
-        if (newQuantity <= materiau.stock_actuel) {
-          return prevCart.map(item =>
-            item.materiau.id === materiau.id
-              ? { ...item, quantite: newQuantity }
-              : item
-          );
-        } else {
+    setCart(prev => {
+      const found = prev.find(i => i.materiau.id === materiau.id);
+      if (found) {
+        const q = clamp(found.quantite + 1, 1, Math.max(1, materiau.stock_actuel));
+        if (q === found.quantite) {
           alert(`Stock insuffisant ! Maximum disponible: ${materiau.stock_actuel} ${materiau.unite}`);
-          return prevCart;
+          return prev;
         }
-      } else {
-        if (materiau.stock_actuel > 0) {
-          return [...prevCart, { materiau, quantite: 1 }];
-        } else {
-          alert(`Stock épuisé pour ${materiau.nom}`);
-          return prevCart;
-        }
+        return prev.map(i => (i.materiau.id === materiau.id ? { ...i, quantite: q } : i));
       }
+      if (materiau.stock_actuel <= 0) {
+        alert(`Stock épuisé pour ${materiau.nom}`);
+        return prev;
+      }
+      return [...prev, { materiau, quantite: 1 }];
     });
   };
 
   const updateCartQuantity = (materiauId: string, newQuantity: number) => {
+    const materiau = materiaux.find(m => m.id === materiauId);
+    if (!materiau) return;
+
     if (newQuantity <= 0) {
       removeFromCart(materiauId);
-    } else {
-      const materiau = materiaux.find(m => m.id === materiauId);
-      if (materiau && newQuantity <= materiau.stock_actuel) {
-        setCart(prevCart =>
-          prevCart.map(item =>
-            item.materiau.id === materiauId
-              ? { ...item, quantite: newQuantity }
-              : item
-          )
-        );
-      } else {
-        alert(`Stock insuffisant ! Maximum: ${materiau?.stock_actuel}`);
-      }
+      return;
     }
+
+    const q = clamp(newQuantity, 1, Math.max(1, materiau.stock_actuel));
+    if (q !== newQuantity) {
+      alert(`Stock insuffisant ! Maximum: ${materiau.stock_actuel} ${materiau.unite}`);
+    }
+
+    setCart(prev =>
+      prev.map(i => (i.materiau.id === materiauId ? { ...i, quantite: q } : i))
+    );
   };
 
   const removeFromCart = (materiauId: string) => {
-    setCart(prevCart => prevCart.filter(item => item.materiau.id !== materiauId));
+    setCart(prev => prev.filter(i => i.materiau.id !== materiauId));
   };
 
-  const clearCart = () => {
-    setCart([]);
-  };
+  const clearCart = () => setCart([]);
 
   // Soumission sortie (distribution)
   const handleDistribution = async () => {
@@ -248,67 +241,58 @@ const DirectDistributionPage: React.FC = () => {
         alert('Aucun matériau sélectionné');
         return;
       }
-
       if (destinataire.type === 'existing' && !destinataire.chef_id) {
         alert('Veuillez sélectionner un destinataire');
         return;
       }
-
       if (destinataire.type === 'custom' && !destinataire.nom_custom.trim()) {
         alert('Veuillez saisir le nom du destinataire');
         return;
       }
-
       if (destinataire.type === 'custom' && !destinataire.nom_chantier_custom.trim()) {
         alert('Veuillez saisir le nom du chantier');
         return;
       }
-      setSubmitting(true);
 
+      setSubmitting(true);
       const token = localStorage.getItem('token');
 
-      // Récupérer un dépôt (ex: le 1er)
       const depotId =
         (await fetch(`${API_BASE}/admin/depots`, {
-          headers: { 'Authorization': `Bearer ${token}` }
+          headers: { Authorization: `Bearer ${token}` }
         })
           .then(r => r.json())
           .then(d => d.depots?.[0]?.id)) || null;
 
       const distributionData = {
         destinataire_id: destinataire.type === 'existing' ? destinataire.chef_id : null,
-        destinataire_custom: destinataire.type === 'custom' ? {
-          nom: destinataire.nom_custom,
-          adresse: destinataire.adresse_custom,
-          telephone: destinataire.telephone_custom,
-          nom_chantier: destinataire.nom_chantier_custom
-        } : null,
+        destinataire_custom:
+          destinataire.type === 'custom'
+            ? {
+                nom: destinataire.nom_custom,
+                adresse: destinataire.adresse_custom,
+                telephone: destinataire.telephone_custom,
+                nom_chantier: destinataire.nom_chantier_custom
+              }
+            : null,
         depot_id: depotId,
         commentaire,
         items: cart.map(item => ({
           materiau_id: item.materiau.id,
           quantite: item.quantite,
-          // Informations supplémentaires pour debug
           materiau_nom: item.materiau.nom,
           code_produit: item.materiau.code_produit,
           unite: item.materiau.unite
         }))
       };
 
-      console.log('📤 Données envoyées au backend:', {
-        destinataire_type: destinataire.type,
-        destinataire_custom: distributionData.destinataire_custom,
-        items_count: distributionData.items.length,
-        items: distributionData.items
-      });
-
       const response = await fetch(`${API_BASE}/bons-livraison/direct`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify(distributionData),
+        body: JSON.stringify(distributionData)
       });
 
       if (!response.ok) {
@@ -317,18 +301,58 @@ const DirectDistributionPage: React.FC = () => {
       }
 
       const data = await response.json();
-      
-      // Succès
       const bonInfo = data.bon_livraison;
       const itemsCount = cart.length;
-      const totalQuantite = cart.reduce((sum, item) => sum + item.quantite, 0);
-      
-      alert(`✅ Distribution réussie !\n\nBon: ${bonInfo.numero_bon}\nMatériaux: ${itemsCount}\nQuantité totale: ${totalQuantite}\n\nRedirection vers impression...`);
-      
-      // Naviguer vers le bon pour impression
-      navigate(`/bon-livraison/direct-${data.bon_livraison.id}`);
-      
-      // Reset
+      const totalQuantite = cart.reduce((s, i) => s + i.quantite, 0);
+
+      alert(
+        `✅ Distribution réussie !\n\nBon: ${bonInfo.numero_bon}\nMatériaux: ${itemsCount}\nQuantité totale: ${totalQuantite}\n\nRedirection vers impression...`
+      );
+
+      // Données à imprimer (sauvegarde locale)
+      const demandeurNom =
+        destinataire.type === 'existing'
+          ? (() => {
+              const chef = chefsChantier.find(c => c.id === destinataire.chef_id);
+              return chef ? `${chef.prenom} ${chef.nom}` : 'Chef de Chantier';
+            })()
+          : destinataire.nom_custom || 'Destinataire Custom';
+
+      const bonDataForPrint = {
+        id: bonInfo.id,
+        numero_bon: bonInfo.numero_bon,
+        date_preparation: bonInfo.date_preparation || new Date().toISOString(),
+        demandeur_nom: demandeurNom,
+        demandeur_email:
+          destinataire.type === 'existing'
+            ? chefsChantier.find(c => c.id === destinataire.chef_id)?.email || 'chef@dantela.cm'
+            : 'externe@dantela.cm',
+        demandeur_telephone:
+          destinataire.type === 'existing'
+            ? chefsChantier.find(c => c.id === destinataire.chef_id)?.telephone || '+237669790437'
+            : destinataire.telephone_custom || '+237669790437',
+        demandeur_adresse:
+          destinataire.type === 'existing'
+            ? 'Adresse du chantier'
+            : destinataire.adresse_custom || "203 Boulevard de l'OCAM, Mvog Mbi - Yaoundé",
+        nom_chantier:
+          destinataire.type === 'existing'
+            ? chefsChantier.find(c => c.id === destinataire.chef_id)?.nom_chantier || 'Chantier'
+            : destinataire.nom_chantier_custom || 'Distribution Directe',
+        magazinier_nom: `${user?.prenom || ''} ${user?.nom || ''}`.trim(),
+        depot_nom: 'Dépôt Elig-Essono',
+        items: cart.map(item => ({
+          id: item.materiau.id,
+          code_produit: item.materiau.code_produit,
+          materiau_nom: item.materiau.nom,
+          quantite_demandee: item.quantite,
+          unite: item.materiau.unite
+        }))
+      };
+
+      localStorage.setItem(`bon_direct_${bonInfo.id}`, JSON.stringify(bonDataForPrint));
+
+      // Reset & refresh
       clearCart();
       setCommentaire('');
       setDestinataire({
@@ -339,51 +363,13 @@ const DirectDistributionPage: React.FC = () => {
         telephone_custom: '',
         nom_chantier_custom: ''
       });
-      
-      // Sauvegarder les données du bon pour l'impression
-      const bonDataForPrint = {
-        id: bonInfo.id,
-        numero_bon: bonInfo.numero_bon,
-        date_preparation: bonInfo.date_preparation || new Date().toISOString(),
-        demandeur_nom: destinataire.type === 'existing' ? 
-          (() => {
-            const chef = chefsChantier.find(c => c.id === destinataire.chef_id);
-            return chef ? `${chef.prenom} ${chef.nom}` : 'Chef de Chantier';
-          })() : 
-          destinataire.nom_custom || 'Destinataire Custom',
-        demandeur_email: destinataire.type === 'existing' ? 
-          chefsChantier.find(c => c.id === destinataire.chef_id)?.email || 'chef@dantela.cm' : 
-          'externe@dantela.cm',
-        demandeur_telephone: destinataire.type === 'existing' ? 
-          chefsChantier.find(c => c.id === destinataire.chef_id)?.telephone || '+237669790437' : 
-          destinataire.telephone_custom || '+237669790437',
-        demandeur_adresse: destinataire.type === 'existing' ? 
-          'Adresse du chantier' : 
-          destinataire.adresse_custom || '203 Boulevard de l\'OCAM, Mvog Mbi - Yaoundé',
-        nom_chantier: destinataire.type === 'existing' ? 
-          chefsChantier.find(c => c.id === destinataire.chef_id)?.nom_chantier || 'Chantier' : 
-          destinataire.nom_chantier_custom || 'Distribution Directe',
-        magazinier_nom: `${user?.prenom || ''} ${user?.nom || ''}`.trim(),
-        depot_nom: 'Dépôt Principal Yaoundé',
-        items: cart.map(item => ({
-          id: item.materiau.id,
-          code_produit: item.materiau.code_produit,
-          materiau_nom: item.materiau.nom,
-          quantite_demandee: item.quantite,
-          unite: item.materiau.unite
-        }))
-      };
-      
-      console.log('💾 Données bon sauvegardées pour impression:', bonDataForPrint);
-      
-      localStorage.setItem(`bon_direct_${bonInfo.id}`, JSON.stringify(bonDataForPrint));
-      
-      // Actualiser les données
       fetchData();
 
-    } catch (error) {
-      console.error('Erreur distribution:', error);
-      alert(error instanceof Error ? error.message : 'Erreur lors de la distribution');
+      // Rediriger pour impression
+      navigate(`/bon-livraison/direct-${bonInfo.id}`);
+    } catch (e) {
+      console.error('Erreur distribution:', e);
+      alert(e instanceof Error ? e.message : 'Erreur lors de la distribution');
     } finally {
       setSubmitting(false);
     }
@@ -392,17 +378,55 @@ const DirectDistributionPage: React.FC = () => {
   // Soumission entrée
   const handleEntree = async () => {
     try {
-      if (!entreeForm.materiau_id || !entreeForm.quantite || parseInt(entreeForm.quantite) <= 0) {
-        alert('Veuillez sélectionner un matériau et saisir une quantité positive');
+      if (isNewMateriau && !newMateriau.nom.trim()) {
+        alert('Veuillez saisir le nom du nouveau matériau');
+        return;
+      }
+      if (!isNewMateriau && (!entreeForm.materiau_id || !entreeForm.materiau_id.trim())) {
+        alert('Veuillez sélectionner un matériau');
+        return;
+      }
+      if (!entreeForm.quantite || parseInt(entreeForm.quantite, 10) <= 0) {
+        alert('Veuillez saisir une quantité positive');
         return;
       }
 
       setSubmitting(true);
-
       const token = localStorage.getItem('token');
+
+      let materiauId = entreeForm.materiau_id;
+
+      // 1) Créer le matériau si nécessaire
+      if (isNewMateriau) {
+        const resCreate = await fetch(`${API_BASE}/materiaux`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(newMateriau)
+        });
+
+        if (!resCreate.ok) {
+          const ed = await resCreate.json();
+          throw new Error(ed.message || 'Échec de création du matériau');
+        }
+
+        const created = await resCreate.json();
+        materiauId = created?.materiau?.id || created?.id;
+
+        // Refresh liste
+        await fetchData();
+
+        // Reset formulaire de création
+        setIsNewMateriau(false);
+        setNewMateriau({ nom: '', code_produit: '', unite: 'pcs', image_url: '' });
+      }
+
+      // 2) Enregistrer l’entrée
       const entreeData = {
-        materiau_id: entreeForm.materiau_id,
-        quantite: parseInt(entreeForm.quantite),
+        materiau_id: materiauId,
+        quantite: parseInt(entreeForm.quantite, 10),
         fournisseur: entreeForm.fournisseur,
         numero_facture: entreeForm.numero_facture,
         motif: entreeForm.motif,
@@ -412,23 +436,21 @@ const DirectDistributionPage: React.FC = () => {
       const response = await fetch(`${API_BASE}/stock/add`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify(entreeData),
+        body: JSON.stringify(entreeData)
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Erreur lors de l\'entrée de stock');
+        throw new Error(errorData.message || "Erreur lors de l'entrée de stock");
       }
 
       await response.json();
-      
-      // Succès
       alert(`Entrée de stock enregistrée avec succès !`);
-      
-      // Reset formulaire
+
+      // Reset formulaire d’entrée
       setEntreeForm({
         materiau_id: '',
         quantite: '',
@@ -437,35 +459,31 @@ const DirectDistributionPage: React.FC = () => {
         motif: 'Réception fournisseur',
         description: ''
       });
-      
-      // Actualiser les données
-      fetchData();
 
-    } catch (error) {
-      console.error('Erreur entrée:', error);
-      alert(error instanceof Error ? error.message : 'Erreur lors de l\'entrée de stock');
+      fetchData();
+    } catch (e) {
+      console.error('Erreur entrée:', e);
+      alert(e instanceof Error ? e.message : "Erreur lors de l'entrée de stock");
     } finally {
       setSubmitting(false);
     }
   };
 
   // Filtrer les matériaux
-  const materiauxFiltres = materiaux.filter(materiau =>
-    materiau.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    materiau.code_produit.toLowerCase().includes(searchTerm.toLowerCase())
+  const materiauxFiltres = materiaux.filter(m =>
+    (m.nom || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (m.code_produit || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   // Calculer les statistiques
   const stats = {
     total_materiaux: materiaux.length,
     alertes_stock: materiaux.filter(m => m.stock_actuel <= m.stock_minimum).length,
-    entrees_aujourd_hui: mouvements.filter(m => 
-      m.type_mouvement === 'entree' && 
-      new Date(m.created_at).toDateString() === new Date().toDateString()
+    entrees_aujourd_hui: mouvements.filter(
+      m => m.type_mouvement === 'entree' && new Date(m.created_at).toDateString() === new Date().toDateString()
     ).length,
-    sorties_aujourd_hui: mouvements.filter(m => 
-      m.type_mouvement === 'sortie' && 
-      new Date(m.created_at).toDateString() === new Date().toDateString()
+    sorties_aujourd_hui: mouvements.filter(
+      m => m.type_mouvement === 'sortie' && new Date(m.created_at).toDateString() === new Date().toDateString()
     ).length
   };
 
@@ -473,8 +491,7 @@ const DirectDistributionPage: React.FC = () => {
     const now = new Date();
     const date = new Date(dateString);
     const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
-
-    if (diffInMinutes < 1) return 'À l\'instant';
+    if (diffInMinutes < 1) return "À l'instant";
     if (diffInMinutes < 60) return `Il y a ${diffInMinutes} min`;
     if (diffInMinutes < 1440) return `Il y a ${Math.floor(diffInMinutes / 60)}h`;
     return `Il y a ${Math.floor(diffInMinutes / 1440)}j`;
@@ -487,18 +504,11 @@ const DirectDistributionPage: React.FC = () => {
     return 'bg-green-500';
   };
 
-  const getStockText = (stock: number, minimum: number) => {
-    if (stock === 0) return 'Rupture';
-    if (stock <= minimum) return 'Critique';
-    if (stock <= minimum * 1.5) return 'Faible';
-    return 'Bon';
-  };
-
   if (loading) {
     return (
       <Layout>
         <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 sm:h-12 sm:w-12 border-b-2 border-teal-600"></div>
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-teal-600"></div>
         </div>
       </Layout>
     );
@@ -507,125 +517,100 @@ const DirectDistributionPage: React.FC = () => {
   return (
     <Layout>
       <div className="space-y-4 sm:space-y-6">
-        {/* Header avec KPI - Mobile optimisé */}
+        {/* Header */}
         <div className="bg-gradient-to-r from-teal-600 via-teal-700 to-teal-800 rounded-xl sm:rounded-2xl p-4 sm:p-6 lg:p-8 text-white relative overflow-hidden">
-          {/* Formes décoratives - Cachées sur mobile */}
-          <div className="hidden sm:block absolute top-0 right-0 w-32 sm:w-48 lg:w-64 h-32 sm:h-48 lg:h-64 bg-white bg-opacity-10 rounded-full -translate-y-16 sm:-translate-y-24 lg:-translate-y-32 translate-x-16 sm:translate-x-24 lg:translate-x-32"></div>
-          <div className="hidden sm:block absolute bottom-0 left-0 w-24 sm:w-36 lg:w-48 h-24 sm:h-36 lg:h-48 bg-white bg-opacity-5 rounded-full translate-y-12 sm:translate-y-18 lg:translate-y-24 -translate-x-12 sm:-translate-x-18 lg:-translate-x-24"></div>
-          
+          <div className="hidden sm:block absolute top-0 right-0 w-48 h-48 bg-white/10 rounded-full -translate-y-24 translate-x-24"></div>
+          <div className="hidden sm:block absolute bottom-0 left-0 w-36 h-36 bg-white/5 rounded-full translate-y-20 -translate-x-20"></div>
+
           <div className="relative z-10">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-6">
               <div className="mb-4 sm:mb-0">
                 <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-2 sm:mb-3">
-                  {language === 'fr' ? 'Gestion des Stocks' : 
-                   language === 'en' ? 'Stock Management' : 
-                   'Stok Yönetimi'}
+                  {language === 'fr'
+                    ? 'Gestion des Stocks'
+                    : language === 'en'
+                    ? 'Stock Management'
+                    : 'Stok Yönetimi'}
                 </h1>
                 <p className="text-base sm:text-lg lg:text-xl text-teal-100 mb-2">
-                  {language === 'fr' ? 'Entrées, sorties et distribution directe' : 
-                   language === 'en' ? 'Inbound, outbound and direct distribution' : 
-                   'Giriş, çıkış ve doğrudan dağıtım'}
+                  {language === 'fr'
+                    ? 'Entrées, sorties et distribution directe'
+                    : language === 'en'
+                    ? 'Inbound, outbound and direct distribution'
+                    : 'Giriş, çıkış ve doğrudan dağıtım'}
                 </p>
                 <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4 space-y-2 sm:space-y-0 text-sm sm:text-base text-teal-200">
                   <div className="flex items-center space-x-2">
-                    <User className="w-4 h-4 sm:w-5 sm:h-5" />
+                    <User className="w-5 h-5" />
                     <span className="truncate">{user?.prenom} {user?.nom}</span>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <Building2 className="w-4 h-4 sm:w-5 sm:h-5" />
+                    <Building2 className="w-5 h-5" />
                     <span>Magazinier</span>
                   </div>
                 </div>
               </div>
-              
+
               <div className="flex items-center space-x-3">
                 <button
                   onClick={handleRefresh}
                   disabled={refreshing}
-                  className="bg-white bg-opacity-20 text-white p-2 sm:p-3 rounded-lg sm:rounded-xl hover:bg-opacity-30 transition-all duration-200 backdrop-blur-sm"
+                  className="bg-white/20 text-white p-3 rounded-xl hover:bg-white/30 transition-all backdrop-blur-sm"
                 >
-                  <RefreshCw className={`w-5 h-5 sm:w-6 sm:h-6 ${refreshing ? 'animate-spin' : ''}`} />
+                  <RefreshCw className={`w-6 h-6 ${refreshing ? 'animate-spin' : ''}`} />
                 </button>
-                <div className="bg-white bg-opacity-20 p-3 sm:p-4 rounded-xl sm:rounded-2xl backdrop-blur-sm">
-                  <Package className="w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12" />
+                <div className="bg-white/20 p-4 rounded-2xl backdrop-blur-sm">
+                  <Package className="w-10 h-10 lg:w-12 lg:h-12" />
                 </div>
               </div>
             </div>
 
-            {/* KPI Header - Grid 2x2 sur mobile */}
+            {/* KPI */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
-              <div className="bg-white bg-opacity-20 rounded-lg sm:rounded-xl p-3 sm:p-4 text-center backdrop-blur-sm">
-                <Package className="w-6 h-6 sm:w-8 sm:h-8 mx-auto mb-1 sm:mb-2" />
-                <p className="text-lg sm:text-2xl font-bold">{stats.total_materiaux}</p>
-                <p className="text-xs sm:text-sm text-teal-100">
-                  {language === 'fr' ? 'Matériaux' : language === 'en' ? 'Materials' : 'Malzeme'}
-                </p>
+              <div className="bg-white/20 rounded-xl p-4 text-center backdrop-blur-sm">
+                <Package className="w-8 h-8 mx-auto mb-2" />
+                <p className="text-2xl font-bold">{stats.total_materiaux}</p>
+                <p className="text-sm text-teal-100">{language === 'fr' ? 'Matériaux' : language === 'en' ? 'Materials' : 'Malzeme'}</p>
               </div>
-              <div className="bg-white bg-opacity-20 rounded-lg sm:rounded-xl p-3 sm:p-4 text-center backdrop-blur-sm">
-                <AlertTriangle className="w-6 h-6 sm:w-8 sm:h-8 mx-auto mb-1 sm:mb-2" />
-                <p className="text-lg sm:text-2xl font-bold">{stats.alertes_stock}</p>
-                <p className="text-xs sm:text-sm text-teal-100">
-                  {language === 'fr' ? 'Alertes' : language === 'en' ? 'Alerts' : 'Uyarı'}
-                </p>
+              <div className="bg-white/20 rounded-xl p-4 text-center backdrop-blur-sm">
+                <ArrowDown className="w-8 h-8 mx-auto mb-2" />
+                <p className="text-2xl font-bold">{stats.sorties_aujourd_hui}</p>
+                <p className="text-sm text-teal-100">{language === 'fr' ? 'Sorties (aujourd.)' : language === 'en' ? 'Outbound (today)' : 'Çıkış (bugün)'}</p>
               </div>
-              <div className="bg-white bg-opacity-20 rounded-lg sm:rounded-xl p-3 sm:p-4 text-center backdrop-blur-sm">
-                <ArrowUp className="w-6 h-6 sm:w-8 sm:h-8 mx-auto mb-1 sm:mb-2" />
-                <p className="text-lg sm:text-2xl font-bold">{stats.entrees_aujourd_hui}</p>
-                <p className="text-xs sm:text-sm text-teal-100">
-                  {language === 'fr' ? 'Entrées' : language === 'en' ? 'Inbound' : 'Giriş'}
-                </p>
+              <div className="bg-white/20 rounded-xl p-4 text-center backdrop-blur-sm">
+                <ArrowUp className="w-8 h-8 mx-auto mb-2" />
+                <p className="text-2xl font-bold">{stats.entrees_aujourd_hui}</p>
+                <p className="text-sm text-teal-100">{language === 'fr' ? 'Entrées (aujourd.)' : language === 'en' ? 'Inbound (today)' : 'Giriş (bugün)'}</p>
               </div>
-              <div className="bg-white bg-opacity-20 rounded-lg sm:rounded-xl p-3 sm:p-4 text-center backdrop-blur-sm">
-                <ArrowDown className="w-6 h-6 sm:w-8 sm:h-8 mx-auto mb-1 sm:mb-2" />
-                <p className="text-lg sm:text-2xl font-bold">{stats.sorties_aujourd_hui}</p>
-                <p className="text-xs sm:text-sm text-teal-100">
-                  {language === 'fr' ? 'Sorties' : language === 'en' ? 'Outbound' : 'Çıkış'}
-                </p>
+              <div className="bg-white/20 rounded-xl p-4 text-center backdrop-blur-sm">
+                <Activity className="w-8 h-8 mx-auto mb-2" />
+                <p className="text-2xl font-bold">{stats.alertes_stock}</p>
+                <p className="text-sm text-teal-100">{language === 'fr' ? 'Alertes stock' : language === 'en' ? 'Stock alerts' : 'Stok uyarısı'}</p>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Onglets - Mobile optimisé */}
+        {/* Onglets */}
         <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg border border-slate-100">
           <div className="border-b border-slate-200">
             <nav className="flex">
               {[
-                { 
-                  key: 'sortie', 
-                  label: language === 'fr' ? 'Sortie' : language === 'en' ? 'Outbound' : 'Çıkış',
-                  icon: ArrowDown, 
-                  color: 'text-red-600',
-                  count: cart.length 
-                },
-                { 
-                  key: 'entree', 
-                  label: language === 'fr' ? 'Entrée' : language === 'en' ? 'Inbound' : 'Giriş',
-                  icon: ArrowUp, 
-                  color: 'text-green-600',
-                  count: 0 
-                },
-                { 
-                  key: 'historique', 
-                  label: language === 'fr' ? 'Historique' : language === 'en' ? 'History' : 'Geçmiş',
-                  icon: Activity, 
-                  color: 'text-blue-600',
-                  count: mouvements.length 
-                }
-              ].map((tab) => (
+                { key: 'sortie', label: language === 'fr' ? 'Sortie' : language === 'en' ? 'Outbound' : 'Çıkış', icon: ArrowDown, color: 'text-red-600', count: cart.length },
+                { key: 'entree', label: language === 'fr' ? 'Entrée' : language === 'en' ? 'Inbound' : 'Giriş', icon: ArrowUp, color: 'text-green-600', count: 0 },
+                { key: 'historique', label: language === 'fr' ? 'Historique' : language === 'en' ? 'History' : 'Geçmiş', icon: Activity, color: 'text-blue-600', count: mouvements.length }
+              ].map(tab => (
                 <button
                   key={tab.key}
                   onClick={() => setActiveTab(tab.key as any)}
-                  className={`flex-1 flex items-center justify-center space-x-2 py-3 sm:py-4 border-b-2 font-medium text-sm sm:text-base transition-colors ${
-                    activeTab === tab.key
-                      ? 'border-teal-500 text-teal-600 bg-teal-50'
-                      : 'border-transparent text-slate-500 hover:text-slate-700'
+                  className={`flex-1 flex items-center justify-center space-x-2 py-4 border-b-2 font-medium transition-colors ${
+                    activeTab === tab.key ? 'border-teal-500 text-teal-600 bg-teal-50' : 'border-transparent text-slate-500 hover:text-slate-700'
                   }`}
                 >
-                  <tab.icon className={`w-4 h-4 sm:w-5 sm:h-5 ${activeTab === tab.key ? tab.color : ''}`} />
+                  <tab.icon className={`w-5 h-5 ${activeTab === tab.key ? tab.color : ''}`} />
                   <span>{tab.label}</span>
                   {tab.count > 0 && (
-                    <span className="bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center animate-pulse">
+                    <span className="bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
                       {tab.count > 99 ? '99+' : tab.count}
                     </span>
                   )}
@@ -634,12 +619,12 @@ const DirectDistributionPage: React.FC = () => {
             </nav>
           </div>
 
-          {/* Contenu des onglets */}
+          {/* Contenu */}
           <div className="p-4 sm:p-6">
-            {/* ONGLET SORTIE */}
+            {/* SORTIE */}
             {activeTab === 'sortie' && (
-              <div className="space-y-4 sm:space-y-6">
-                {/* Filtres collapsibles sur mobile */}
+              <div className="space-y-6">
+                {/* Filtres */}
                 <div className="space-y-4">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
                     <button
@@ -649,18 +634,22 @@ const DirectDistributionPage: React.FC = () => {
                       <Search className="w-4 h-4" />
                       <span>Filtres</span>
                     </button>
-                    
+
                     <div className={`${showFilters ? 'block' : 'hidden'} sm:block w-full sm:max-w-md`}>
                       <div className="relative">
-                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                         <input
                           type="text"
                           value={searchTerm}
                           onChange={(e) => setSearchTerm(e.target.value)}
-                          placeholder={language === 'fr' ? 'Rechercher matériau...' : 
-                                       language === 'en' ? 'Search material...' : 
-                                       'Malzeme ara...'}
-                          className="w-full pl-10 pr-4 py-2 sm:py-3 border border-slate-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                          placeholder={
+                            language === 'fr'
+                              ? 'Rechercher matériau...'
+                              : language === 'en'
+                              ? 'Search material...'
+                              : 'Malzeme ara...'
+                          }
+                          className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                         />
                       </div>
                     </div>
@@ -672,73 +661,79 @@ const DirectDistributionPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Grille matériaux - Mobile optimisée */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
-                  {materiauxFiltres.map(materiau => (
-                    <div key={materiau.id} className="bg-white border border-slate-200 rounded-lg sm:rounded-xl p-3 sm:p-4 hover:shadow-lg transition-all duration-300 hover:scale-[1.02]">
-                      {/* Header avec stock */}
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-bold text-slate-900 text-sm sm:text-base truncate">{materiau.nom}</h3>
-                          <p className="text-xs sm:text-sm text-slate-600">{materiau.code_produit}</p>
-                        </div>
-                        <div className={`px-2 py-1 rounded-full text-xs font-medium text-white ${getStockColor(materiau.stock_actuel, materiau.stock_minimum)}`}>
-                          {materiau.stock_actuel}
-                        </div>
-                      </div>
-
-                      {/* Informations */}
-                      <div className="space-y-2 mb-3">
-                        <div className="flex justify-between text-xs sm:text-sm">
-                          <span className="text-slate-600">Unité:</span>
-                          <span className="font-medium">{materiau.unite}</span>
-                        </div>
-                        <div className="flex justify-between text-xs sm:text-sm">
-                          <span className="text-slate-600">Stock:</span>
-                          <span className={`font-bold ${materiau.stock_actuel <= materiau.stock_minimum ? 'text-red-600' : 'text-green-600'}`}>
-                            {materiau.stock_actuel} / {materiau.stock_minimum}
-                          </span>
-                        </div>
-                        {materiau.fournisseur && (
-                          <div className="flex justify-between text-xs sm:text-sm">
-                            <span className="text-slate-600">Fournisseur:</span>
-                            <span className="font-medium truncate ml-2">{materiau.fournisseur}</span>
-                          </div>
+                {/* Grille matériaux avec IMAGE */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {materiauxFiltres.map(m => (
+                    <div key={m.id} className="bg-white border border-slate-200 rounded-xl overflow-hidden hover:shadow-lg transition">
+                      {/* IMAGE */}
+                      <div className="aspect-[4/3] bg-slate-50 flex items-center justify-center overflow-hidden">
+                        {m.image_url ? (
+                          <img src={m.image_url} alt={m.nom} className="w-full h-full object-cover" loading="lazy" />
+                        ) : (
+                          <div className="text-slate-400 text-xs">Aucune image</div>
                         )}
                       </div>
 
-                      {/* Actions */}
-                      <div className="flex space-x-2">
-                        <button className="flex-1 bg-slate-600 text-white py-2 px-3 rounded-lg hover:bg-slate-700 transition-colors flex items-center justify-center space-x-1 text-sm">
-                          <Eye className="w-4 h-4" />
-                          <span>Voir</span>
-                        </button>
-                        <button
-                          onClick={() => addToCart(materiau)}
-                          disabled={materiau.stock_actuel === 0}
-                          className="flex-1 bg-gradient-to-r from-red-500 to-red-600 text-white py-2 px-3 rounded-lg hover:from-red-600 hover:to-red-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-1 text-sm"
-                        >
-                          <Minus className="w-4 h-4" />
-                          <span>Sortir</span>
-                        </button>
+                      <div className="p-4">
+                        {/* Header */}
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-bold text-slate-900 text-sm sm:text-base truncate">{m.nom}</h3>
+                            <p className="text-xs sm:text-sm text-slate-600">{m.code_produit}</p>
+                          </div>
+                          <div className={`px-2 py-1 rounded-full text-xs font-medium text-white ${getStockColor(m.stock_actuel, m.stock_minimum)}`}>
+                            {m.stock_actuel}
+                          </div>
+                        </div>
+
+                        {/* Infos */}
+                        <div className="space-y-2 mb-3">
+                          <div className="flex justify-between text-xs sm:text-sm">
+                            <span className="text-slate-600">Unité:</span>
+                            <span className="font-medium">{m.unite}</span>
+                          </div>
+                          <div className="flex justify-between text-xs sm:text-sm">
+                            <span className="text-slate-600">Stock:</span>
+                            <span className={`font-bold ${m.stock_actuel <= m.stock_minimum ? 'text-red-600' : 'text-green-600'}`}>
+                              {m.stock_actuel} / {m.stock_minimum}
+                            </span>
+                          </div>
+                          {m.fournisseur && (
+                            <div className="flex justify-between text-xs sm:text-sm">
+                              <span className="text-slate-600">Fournisseur:</span>
+                              <span className="font-medium truncate ml-2">{m.fournisseur}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex space-x-2">
+                          <button className="flex-1 bg-slate-600 text-white py-2 px-3 rounded-lg hover:bg-slate-700 transition-colors flex items-center justify-center space-x-1 text-sm">
+                            <Eye className="w-4 h-4" />
+                            <span>Voir</span>
+                          </button>
+                          <button
+                            onClick={() => addToCart(m)}
+                            disabled={m.stock_actuel === 0}
+                            className="flex-1 bg-gradient-to-r from-red-500 to-red-600 text-white py-2 px-3 rounded-lg hover:from-red-600 hover:to-red-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-1 text-sm"
+                          >
+                            <Minus className="w-4 h-4" />
+                            <span>Sortir</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))}
                 </div>
 
-                {/* Panier - Sticky sur desktop, modal sur mobile */}
+                {/* Panier */}
                 {cart.length > 0 && (
                   <div className="bg-gradient-to-r from-red-50 to-red-100 border border-red-200 rounded-xl p-4 sm:p-6">
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="text-lg sm:text-xl font-bold text-red-900">
-                        {language === 'fr' ? 'Distribution en Cours' : 
-                         language === 'en' ? 'Current Distribution' : 
-                         'Mevcut Dağıtım'}
+                        {language === 'fr' ? 'Distribution en Cours' : language === 'en' ? 'Current Distribution' : 'Mevcut Dağıtım'}
                       </h3>
-                      <button
-                        onClick={clearCart}
-                        className="text-red-600 hover:text-red-800 text-sm"
-                      >
+                      <button onClick={clearCart} className="text-red-600 hover:text-red-800 text-sm">
                         <X className="w-5 h-5" />
                       </button>
                     </div>
@@ -751,19 +746,32 @@ const DirectDistributionPage: React.FC = () => {
                             <p className="font-medium text-slate-900 text-sm truncate">{item.materiau.nom}</p>
                             <p className="text-xs text-slate-600">{item.materiau.code_produit}</p>
                           </div>
-                          <div className="flex items-center space-x-2">
+                          <div className="flex items-center gap-2">
                             <button
                               onClick={() => updateCartQuantity(item.materiau.id, item.quantite - 1)}
                               className="bg-red-500 text-white p-1 rounded hover:bg-red-600"
+                              aria-label="Diminuer"
                             >
                               <Minus className="w-3 h-3" />
                             </button>
-                            <span className="font-bold text-slate-900 min-w-[2rem] text-center text-sm">
-                              {item.quantite}
-                            </span>
+
+                            {/* INPUT DIRECT DE QUANTITÉ */}
+                            <input
+                              type="number"
+                              min={1}
+                              max={Math.max(1, item.materiau.stock_actuel)}
+                              value={item.quantite}
+                              onChange={(e) => {
+                                const v = parseInt(e.target.value || '1', 10);
+                                updateCartQuantity(item.materiau.id, isNaN(v) ? 1 : v);
+                              }}
+                              className="w-16 text-center border border-slate-300 rounded-md py-1 text-sm"
+                            />
+
                             <button
                               onClick={() => updateCartQuantity(item.materiau.id, item.quantite + 1)}
                               className="bg-green-500 text-white p-1 rounded hover:bg-green-600"
+                              aria-label="Augmenter"
                             >
                               <Plus className="w-3 h-3" />
                             </button>
@@ -778,9 +786,7 @@ const DirectDistributionPage: React.FC = () => {
                         <button
                           onClick={() => setDestinataire({ ...destinataire, type: 'existing', nom_custom: '' })}
                           className={`p-3 border-2 rounded-lg text-left transition-all ${
-                            destinataire.type === 'existing'
-                              ? 'border-blue-500 bg-blue-50'
-                              : 'border-slate-200 hover:border-slate-300'
+                            destinataire.type === 'existing' ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:border-slate-300'
                           }`}
                         >
                           <div className="flex items-center space-x-2">
@@ -788,13 +794,10 @@ const DirectDistributionPage: React.FC = () => {
                             <span className="text-sm font-medium">Chef Existant</span>
                           </div>
                         </button>
-
                         <button
                           onClick={() => setDestinataire({ ...destinataire, type: 'custom', chef_id: '' })}
                           className={`p-3 border-2 rounded-lg text-left transition-all ${
-                            destinataire.type === 'custom'
-                              ? 'border-green-500 bg-green-50'
-                              : 'border-slate-200 hover:border-slate-300'
+                            destinataire.type === 'custom' ? 'border-green-500 bg-green-50' : 'border-slate-200 hover:border-slate-300'
                           }`}
                         >
                           <div className="flex items-center space-x-2">
@@ -869,44 +872,89 @@ const DirectDistributionPage: React.FC = () => {
                       className="w-full bg-gradient-to-r from-red-600 to-red-700 text-white py-3 rounded-xl hover:from-red-700 hover:to-red-800 transition-all duration-200 disabled:opacity-50 flex items-center justify-center space-x-2 shadow-lg"
                     >
                       <Truck className="w-5 h-5" />
-                      <span>
-                        {submitting ? 'Distribution...' : 'Distribuer les Matériaux'}
-                      </span>
+                      <span>{submitting ? 'Distribution...' : 'Distribuer les Matériaux'}</span>
                     </button>
                   </div>
                 )}
               </div>
             )}
 
-            {/* ONGLET ENTRÉE */}
+            {/* ENTREE */}
             {activeTab === 'entree' && (
-              <div className="space-y-4 sm:space-y-6">
+              <div className="space-y-6">
                 <div className="bg-gradient-to-r from-green-50 to-green-100 border border-green-200 rounded-xl p-4 sm:p-6">
                   <h3 className="text-lg sm:text-xl font-bold text-green-900 mb-4">
-                    {language === 'fr' ? 'Réception de Matériaux' : 
-                     language === 'en' ? 'Material Reception' : 
-                     'Malzeme Kabulü'}
+                    {language === 'fr'
+                      ? 'Réception de Matériaux'
+                      : language === 'en'
+                      ? 'Material Reception'
+                      : 'Malzeme Kabulü'}
                   </h3>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {/* Sélection matériau */}
+                    {/* Sélection / Nouveau matériau */}
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-2">
                         Matériau <span className="text-red-500">*</span>
                       </label>
+
                       <select
-                        value={entreeForm.materiau_id}
-                        onChange={(e) => setEntreeForm({ ...entreeForm, materiau_id: e.target.value })}
+                        value={isNewMateriau ? '__new__' : entreeForm.materiau_id}
+                        onChange={(e) => {
+                          if (e.target.value === '__new__') {
+                            setIsNewMateriau(true);
+                            setEntreeForm({ ...entreeForm, materiau_id: '' });
+                          } else {
+                            setIsNewMateriau(false);
+                            setEntreeForm({ ...entreeForm, materiau_id: e.target.value });
+                          }
+                        }}
                         className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500"
                         required
                       >
                         <option value="">Sélectionner un matériau...</option>
-                        {materiaux.map(materiau => (
-                          <option key={materiau.id} value={materiau.id}>
-                            {materiau.nom} ({materiau.code_produit}) - Stock: {materiau.stock_actuel}
+                        {materiaux.map(m => (
+                          <option key={m.id} value={m.id}>
+                            {m.nom} ({m.code_produit}) - Stock: {m.stock_actuel}
                           </option>
                         ))}
+                        <option value="__new__">➕ Nouveau matériau…</option>
                       </select>
+
+                      {/* Champs si nouveau matériau */}
+                      {isNewMateriau && (
+                        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <input
+                            type="text"
+                            value={newMateriau.nom}
+                            onChange={(e) => setNewMateriau({ ...newMateriau, nom: e.target.value })}
+                            placeholder="Nom du matériau *"
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                            required
+                          />
+                          <input
+                            type="text"
+                            value={newMateriau.code_produit}
+                            onChange={(e) => setNewMateriau({ ...newMateriau, code_produit: e.target.value })}
+                            placeholder="Code produit (optionnel)"
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                          />
+                          <input
+                            type="text"
+                            value={newMateriau.unite}
+                            onChange={(e) => setNewMateriau({ ...newMateriau, unite: e.target.value })}
+                            placeholder="Unité (ex: pcs, sac, m²…)"
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                          />
+                          <input
+                            type="url"
+                            value={newMateriau.image_url}
+                            onChange={(e) => setNewMateriau({ ...newMateriau, image_url: e.target.value })}
+                            placeholder="URL image (optionnel)"
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                          />
+                        </div>
+                      )}
                     </div>
 
                     {/* Quantité */}
@@ -927,9 +975,7 @@ const DirectDistributionPage: React.FC = () => {
 
                     {/* Fournisseur */}
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">
-                        Fournisseur
-                      </label>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">Fournisseur</label>
                       <input
                         type="text"
                         value={entreeForm.fournisseur}
@@ -941,9 +987,7 @@ const DirectDistributionPage: React.FC = () => {
 
                     {/* Numéro facture */}
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">
-                        N° Facture
-                      </label>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">N° Facture</label>
                       <input
                         type="text"
                         value={entreeForm.numero_facture}
@@ -956,9 +1000,7 @@ const DirectDistributionPage: React.FC = () => {
 
                   {/* Description */}
                   <div className="mt-4">
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
-                      Description
-                    </label>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Description</label>
                     <textarea
                       value={entreeForm.description}
                       onChange={(e) => setEntreeForm({ ...entreeForm, description: e.target.value })}
@@ -971,70 +1013,54 @@ const DirectDistributionPage: React.FC = () => {
                   {/* Bouton entrée */}
                   <button
                     onClick={handleEntree}
-                    disabled={submitting || !entreeForm.materiau_id || !entreeForm.quantite}
+                    disabled={submitting || (!isNewMateriau && !entreeForm.materiau_id) || !entreeForm.quantite}
                     className="w-full mt-4 bg-gradient-to-r from-green-600 to-green-700 text-white py-3 rounded-xl hover:from-green-700 hover:to-green-800 transition-all duration-200 disabled:opacity-50 flex items-center justify-center space-x-2 shadow-lg"
                   >
                     <ArrowUp className="w-5 h-5" />
-                    <span>
-                      {submitting ? 'Enregistrement...' : 'Enregistrer l\'Entrée'}
-                    </span>
+                    <span>{submitting ? 'Enregistrement...' : "Enregistrer l'Entrée"}</span>
                   </button>
                 </div>
               </div>
             )}
 
-            {/* ONGLET HISTORIQUE */}
+            {/* HISTORIQUE */}
             {activeTab === 'historique' && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-lg sm:text-xl font-bold text-slate-900">
-                    {language === 'fr' ? 'Mouvements Récents' : 
-                     language === 'en' ? 'Recent Movements' : 
-                     'Son Hareketler'}
+                    {language === 'fr' ? 'Mouvements Récents' : language === 'en' ? 'Recent Movements' : 'Son Hareketler'}
                   </h3>
                   <span className="text-sm text-slate-600">{mouvements.length} mouvements</span>
                 </div>
 
                 <div className="space-y-3">
-                  {mouvements.map(mouvement => (
-                    <div key={mouvement.id} className="bg-white border border-slate-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                  {mouvements.map(mvt => (
+                    <div key={mvt.id} className="bg-white border border-slate-200 rounded-lg p-4 hover:shadow-md transition-shadow">
                       <div className="flex items-start space-x-3">
-                        <div className={`p-2 rounded-lg ${
-                          mouvement.type_mouvement === 'entree' 
-                            ? 'bg-green-100 text-green-600' 
-                            : 'bg-red-100 text-red-600'
-                        }`}>
-                          {mouvement.type_mouvement === 'entree' ? 
-                            <ArrowUp className="w-4 h-4" /> : 
-                            <ArrowDown className="w-4 h-4" />
-                          }
+                        <div className={`p-2 rounded-lg ${mvt.type_mouvement === 'entree' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
+                          {mvt.type_mouvement === 'entree' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />}
                         </div>
-                        
+
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between mb-1">
-                            <h4 className="font-medium text-slate-900 text-sm truncate">
-                              {mouvement.materiau_nom}
-                            </h4>
-                            <span className={`font-bold text-sm ${
-                              mouvement.type_mouvement === 'entree' ? 'text-green-600' : 'text-red-600'
-                            }`}>
-                              {mouvement.type_mouvement === 'entree' ? '+' : ''}{mouvement.quantite} {mouvement.unite}
+                            <h4 className="font-medium text-slate-900 text-sm truncate">{mvt.materiau_nom}</h4>
+                            <span className={`font-bold text-sm ${mvt.type_mouvement === 'entree' ? 'text-green-600' : 'text-red-600'}`}>
+                              {mvt.type_mouvement === 'entree' ? '+' : ''}
+                              {mvt.quantite} {mvt.unite}
                             </span>
                           </div>
-                          
+
                           <div className="flex items-center justify-between text-xs text-slate-600 mb-2">
-                            <span>{mouvement.code_produit}</span>
-                            <span>Stock: {mouvement.stock_avant} → {mouvement.stock_apres}</span>
+                            <span>{mvt.code_produit}</span>
+                            <span>Stock: {mvt.stock_avant} → {mvt.stock_apres}</span>
                           </div>
-                          
+
                           <div className="flex items-center justify-between text-xs">
-                            <span className="text-slate-500">{mouvement.utilisateur_nom}</span>
-                            <span className="text-slate-500">{formatTimeAgo(mouvement.created_at)}</span>
+                            <span className="text-slate-500">{mvt.utilisateur_nom}</span>
+                            <span className="text-slate-500">{formatTimeAgo(mvt.created_at)}</span>
                           </div>
-                          
-                          {mouvement.motif && (
-                            <p className="text-xs text-slate-600 mt-1 italic">{mouvement.motif}</p>
-                          )}
+
+                          {mvt.motif && <p className="text-xs text-slate-600 mt-1 italic">{mvt.motif}</p>}
                         </div>
                       </div>
                     </div>
@@ -1052,11 +1078,7 @@ const DirectDistributionPage: React.FC = () => {
           </div>
         </div>
 
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-600">
-            {error}
-          </div>
-        )}
+        {error && <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-600">{error}</div>}
       </div>
     </Layout>
   );

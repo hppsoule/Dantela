@@ -100,8 +100,8 @@ const DeliveryNotePage: React.FC = () => {
         const bonData = data.bon_livraison ?? {};
 
         let destinataireNom = 'Distribution Directe';
-        let destinataireEmail = 'distribution@dantela.cm';
-        let destinataireTelephone = '+237669790437';
+        let destinataireEmail = 'dantelasarl@dantela.com';
+        let destinataireTelephone = '+237 650 82 22 47';
         let destinataireAdresse = "203 Boulevard de l'OCAM, Mvog Mbi - Yaoundé";
 
         if (bonData.destinataire_custom) {
@@ -116,7 +116,7 @@ const DeliveryNotePage: React.FC = () => {
         } else if (bonData.destinataire_nom) {
           destinataireNom = bonData.destinataire_nom;
           destinataireEmail = bonData.destinataire_email || 'chef@dantela.cm';
-          destinataireTelephone = bonData.destinataire_telephone || '+237669790437';
+          destinataireTelephone = bonData.destinataire_telephone || '+237 650 82 22 47';
           destinataireAdresse = bonData.destinataire_adresse || 'Adresse du chantier';
         }
 
@@ -133,7 +133,7 @@ const DeliveryNotePage: React.FC = () => {
             bonData.magazinier_nom ||
             `${user?.prenom || ''} ${user?.nom || ''}`.trim() ||
             'Magazinier Dantela',
-          depot_nom: bonData.depot_nom || 'Dépôt Principal Yaoundé',
+          depot_nom: bonData.depot_nom || 'Dépôt Elig-Essono',
           items: bonData.items || [],
         };
 
@@ -145,12 +145,12 @@ const DeliveryNotePage: React.FC = () => {
           date_preparation: new Date().toISOString(),
           demandeur_nom: 'Distribution Directe',
           demandeur_email: 'distribution@dantela.cm',
-          demandeur_telephone: '+237669790437',
+          demandeur_telephone: '+237 650 82 22 47',
           demandeur_adresse: "203 Boulevard de l'OCAM, Mvog Mbi - Yaoundé",
           nom_chantier: 'Distribution Directe',
           magazinier_nom:
             `${user?.prenom || ''} ${user?.nom || ''}`.trim() || 'Magazinier Dantela',
-          depot_nom: 'Dépôt Principal Yaoundé',
+          depot_nom: 'Dépôt Elig-Essono',
           items: [],
         });
       }
@@ -167,7 +167,7 @@ const DeliveryNotePage: React.FC = () => {
         nom_chantier: 'Distribution Directe',
         magazinier_nom:
           `${user?.prenom || ''} ${user?.nom || ''}`.trim() || 'Magazinier Dantela',
-        depot_nom: 'Dépôt Principal Yaoundé',
+        depot_nom: 'Dépôt Elig-Essono',
         items: [],
       });
     }
@@ -214,7 +214,7 @@ const DeliveryNotePage: React.FC = () => {
         nom_chantier: demande.nom_chantier || 'Non spécifié',
         magazinier_nom:
         `${user?.prenom || ''} ${user?.nom || ''}`.trim() || 'Non spécifié',
-        depot_nom: demande.depot_nom || 'Dépôt Principal',
+        depot_nom: demande.depot_nom || 'Dépôt Elig-Essono',
         items: demande.items || [],
       };
 
